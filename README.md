@@ -1,4 +1,6 @@
 
+[![Build status](https://ci.appveyor.com/api/projects/status/a1a66rbxe3600mrd/branch/master?svg=true)](https://ci.appveyor.com/project/bparker06/picodrive/branch/master)
+
 This is yet another Megadrive / Genesis / Sega CD / Mega CD / 32X / SMS
 emulator, which was written having ARM-based handheld devices in mind
 (such as smartphones and handheld consoles like GP2X and Pandora),
