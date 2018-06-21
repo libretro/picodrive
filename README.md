@@ -1,4 +1,4 @@
-
+[![Build Status](https://travis-ci.org/libretro/picodrive.svg?branch=master)](https://travis-ci.org/libretro/picodrive)
 [![Build status](https://ci.appveyor.com/api/projects/status/a1a66rbxe3600mrd/branch/master?svg=true)](https://ci.appveyor.com/project/bparker06/picodrive/branch/master)
 
 This is yet another Megadrive / Genesis / Sega CD / Mega CD / 32X / SMS
