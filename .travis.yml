@@ -14,7 +14,6 @@ env:
     - COMPILER_NAME=gcc CXX=g++-7 CC=gcc-7
   matrix:
     - PLATFORM=linux_x64
-    - PLATFORM=unix-armv7-hardfloat-neon
     - PLATFORM=3ds
 before_script:
   - pwd
