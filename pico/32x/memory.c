@@ -1950,7 +1950,7 @@ void *p32x_sh2_get_mem_ptr(u32 a, u32 *mask, SH2 *sh2)
 int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
 {
   u32 mask;
-  void *ps, *pd;
+  char *ps, *pd;
   int len, i;
 
   // check if src and dst points to memory (rom/sdram/dram/da)
@@ -1958,11 +1958,7 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
     return 0;
   if ((ps = p32x_sh2_get_mem_ptr(src, &mask, sh2)) == (void *)-1)
     return 0;
-#if _MSC_VER
-  (char*)ps += src & mask;
-#else
   ps += src & mask;
-#endif
   len = count * size;
 
   // DRAM in byte access is always in overwrite mode
@@ -1972,17 +1968,13 @@ int p32x_sh2_memcpy(u32 dst, u32 src, int count, int size, SH2 *sh2)
   // align dst to halfword
   if (dst & 1) {
     p32x_sh2_write8(dst, *(u8 *)((uptr)ps ^ 1), sh2);
-#if _MSC_VER
-    ((char*)ps)++, dst++, len --;
-#else
     ps++, dst++, len --;
-#endif
   }
 
   // copy data
   if ((uptr)ps & 1) {
     // unaligned, use halfword copy mode to reduce memory bandwidth
-    u16 *sp = (u16 *)((char*)ps - 1);
+    u16 *sp = (u16 *)(ps - 1);
     u16 dl, dh = *sp++;
     for (i = 0; i < (len & ~1); i += 2, dst += 2, sp++) {
       dl = dh, dh = *sp;
