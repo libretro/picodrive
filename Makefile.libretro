@@ -550,7 +550,7 @@ else
 	fpic := -fPIC
 	SHARED := -shared -static-libgcc -static-libstdc++
 	CFLAGS += -D__WIN32__ -D__WIN32_LIBRETRO__
-
+	USE_LIBRETRO_VFS = 1
 endif
 
 CFLAGS += -DNO_ZLIB -D__LIBRETRO__
