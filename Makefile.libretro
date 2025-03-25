@@ -39,8 +39,8 @@ CFLAGS += -I platform/libretro/libretro-common/include/string
 CFLAGS += -I platform/libretro/libretro-common/include/vfs
 
 USE_LIBRETRO_VFS := 1
-STATIC_LINKING:= 1
-STATIC_LINKING_LINK:= 1
+STATIC_LINKING:= 0
+STATIC_LINKING_LINK:= 0
 LOW_MEMORY := 0
 TARGET_NAME := picodrive
 LIBM := -lm
@@ -437,7 +437,7 @@ else ifneq (,$(findstring armv,$(platform)))
 else ifeq ($(platform), emscripten) 
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
 	ARCH = unknown
-
+	STATIC_LINKING_LINK = 1
 	STATIC_LINKING = 1
 
 # RS90
