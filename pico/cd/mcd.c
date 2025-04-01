@@ -80,6 +80,9 @@ PICO_INTERNAL void PicoPowerMCD(void)
   if (Pico.romsize == 0) // no HINT vector from gate array for MSU
     memset(Pico_mcd->bios + 0x70, 0xff, 4);
   pcd_event_schedule_s68k(PCD_EVENT_CDC, 12500000/75);
+
+  cdc_reset();
+  cdd_reset();
 }
 
 void pcd_soft_reset(void)
@@ -118,7 +121,6 @@ PICO_INTERNAL int PicoResetMCD(void)
     Pico.sv.start = Pico.sv.end = 0; // unused
   }
 
-  msd_reset();
   return 0;
 }
 
@@ -149,10 +151,10 @@ static void SekRunS68k(unsigned int to)
 
 void PicoMCDPrepare(void)
 {
-  // ~1.63 for NTSC, ~1.645 for PAL
+  // 12500000/(osc/7), ~1.63 for NTSC, ~1.645 for PAL
 #define DIV_ROUND(x,y) ((x)+(y)/2) / (y) // round to nearest, x/y+0.5 -> (x+y/2)/y
   unsigned int osc = (Pico.m.pal ? OSC_PAL : OSC_NTSC);
-  mcd_m68k_cycle_mult = DIV_ROUND(12500000ull << 16, osc / 7);
+  mcd_m68k_cycle_mult = DIV_ROUND(7 * 12500000ull << 16, osc);
   mcd_s68k_cycle_mult = DIV_ROUND(1ull * osc << 16, 7 * 12500000);
 }
 
@@ -164,8 +166,26 @@ unsigned int pcd_cycles_m68k_to_s68k(unsigned int c)
 /* events */
 static void pcd_cdc_event(unsigned int now)
 {
+  int audio = Pico_mcd->s68k_regs[0x36] & 0x1;
+
   // 75Hz CDC update
   cdd_update();
+
+  // main 68k cycles since frame start
+  int cycles = 1LL*(now-mcd_s68k_cycle_base) * mcd_s68k_cycle_mult >> 16;
+  // samples@rate since frame start
+  int samples = 1LL * cycles_68k_to_z80(cycles) * Pico.snd.clkz_mult >> 20;
+  // samples@44100Hz since frame start
+  samples = samples * Pico.snd.cdda_mult >> 16;
+  if (samples < 2352/4) // save offset to 1st used sample for state saving
+    Pico_mcd->m.cdda_lba_offset = 2352/4 - samples;
+
+  /* if audio just turned on, store start offset for sound */
+  audio &= !(Pico_mcd->s68k_regs[0x36] & 0x1);
+  if (audio) {
+    Pico_mcd->m.cdda_lba_offset = 0; // starting with full lba
+    Pico_mcd->cdda_frame_offs = samples;
+  }
 
   /* check if a new CDD command has been processed */
   if (!(Pico_mcd->s68k_regs[0x4b] & 0xf0))
@@ -368,7 +388,14 @@ void pcd_run_cpus_normal(int m68k_cycles)
         Pico_mcd->m.m68k_poll_a, Pico_mcd->m.m68k_poll_cnt, SekPc);
     } else
 #endif
+    {
       SekSyncM68k(1);
+      // make sure sub doesn't get too far out of sync with main
+      if (!(Pico_mcd->m.state_flags & (PCD_ST_S68K_POLL|PCD_ST_S68K_SLEEP)) &&
+          pcd_cycles_m68k_to_s68k(Pico.t.m68c_aim - mcd_m68k_cycle_base) >
+                           5000 + SekCycleAimS68k - mcd_s68k_cycle_base)
+        pcd_sync_s68k(Pico.t.m68c_cnt, 0);
+    }
     if (Pico_mcd->m.state_flags & PCD_ST_S68K_SYNC) {
       Pico_mcd->m.state_flags &= ~PCD_ST_S68K_SYNC;
       pcd_sync_s68k(Pico.t.m68c_cnt, 0);
@@ -379,13 +406,14 @@ void pcd_run_cpus_normal(int m68k_cycles)
 void pcd_run_cpus_lockstep(int m68k_cycles)
 {
   unsigned int target = Pico.t.m68c_aim + m68k_cycles;
-  do {
-    Pico.t.m68c_aim += 8;
-    SekSyncM68k(0);
-    pcd_sync_s68k(Pico.t.m68c_aim, 0);
-  } while (CYCLES_GT(target, Pico.t.m68c_aim));
 
-  Pico.t.m68c_aim = target;
+  while (CYCLES_GT(target, Pico.t.m68c_aim)) {
+    int cycles = target - Pico.t.m68c_aim;
+    if (cycles > 8) cycles = 8;
+    SekAimM68k(cycles, 0x108);
+    SekSyncM68k(1);
+    pcd_sync_s68k(Pico.t.m68c_cnt, 0);
+  }
 }
 
 #define PICO_CD
@@ -414,7 +442,6 @@ PICO_INTERNAL void PicoFrameMCD(void)
 void pcd_state_loaded(void)
 {
   unsigned int cycles;
-  int diff;
 
   pcd_state_loaded_mem();
 
@@ -425,7 +452,7 @@ void pcd_state_loaded(void)
 
   // old savestates..
   cycles = pcd_cycles_m68k_to_s68k(Pico.t.m68c_aim);
-  if (CYCLES_GE(cycles - SekCycleAimS68k, 1000)) {
+  if (CYCLES_GE(cycles - SekCycleAimS68k, 12500000/60)) {
     SekCycleCntS68k = SekCycleAimS68k = cycles;
   }
   if (pcd_event_times[PCD_EVENT_CDC] == 0) {
@@ -433,11 +460,10 @@ void pcd_state_loaded(void)
 
     if (Pico_mcd->s68k_regs[0x31])
       pcd_event_schedule(SekCycleAimS68k, PCD_EVENT_TIMER3,
-        Pico_mcd->s68k_regs[0x31] * 384);
+        (Pico_mcd->s68k_regs[0x31]+1) * 384);
   }
 
-  diff = cycles - Pico_mcd->pcm.update_cycles;
-  if ((unsigned int)diff > 12500000/50)
+  if (CYCLES_GE(cycles - Pico_mcd->pcm.update_cycles, 12500000/50))
     Pico_mcd->pcm.update_cycles = cycles;
 
   if (Pico_mcd->m.need_sync) {
@@ -448,6 +474,9 @@ void pcd_state_loaded(void)
   // reschedule
   event_time_next = 0;
   pcd_run_events(SekCycleCntS68k);
+
+  // msd
+  msd_load();
 }
 
 // vim:shiftwidth=2:ts=2:expandtab

@@ -46,6 +46,7 @@ static void cdd_play(s32 lba)
 {
   Pico_msd.currentlba = lba;
 
+  Pico_mcd->m.cdda_lba_offset = 0;
   cdd_play_audio(Pico_msd.index, Pico_msd.currentlba);
   Pico_msd.state |= MSD_ST_PLAY;
   Pico_msd.state &= ~MSD_ST_PAUSE;
@@ -181,11 +182,21 @@ static void msd_init(void)
 void msd_reset(void)
 {
   if (Pico_msd.state) {
-    Pico_msd.state = Pico_msd.command = Pico_msd.result = 0;
     cdd_stop();
+    Pico_msd.state = Pico_msd.command = Pico_msd.result = 0;
 
     PicoResetHook = NULL;
   }
+}
+
+void msd_load(void)
+{
+  if (Pico_msd.state & MSD_ST_PLAY)
+    cdd_play_audio(Pico_msd.index, Pico_msd.currentlba);
+
+  // old saves have this initialized wrong
+  if (cdd.status == NO_DISC)
+    Pico_mcd->s68k_regs[0x36+0] = 0x01;
 }
 
 // memory r/w functions

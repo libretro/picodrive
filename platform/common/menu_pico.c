@@ -371,17 +371,19 @@ me_bind_action emuctrl_actions[] =
 	{ "Fast forward   ", PEV_FF },
 	{ "Reset Game     ", PEV_RESET },
 	{ "Enter Menu     ", PEV_MENU },
-	{ "Pico Next page ", PEV_PICO_PNEXT },
 	{ "Pico Prev page ", PEV_PICO_PPREV },
+	{ "Pico Next page ", PEV_PICO_PNEXT },
 	{ "Pico Storyware ", PEV_PICO_STORY },
 	{ "Pico Pad       ", PEV_PICO_PAD },
-	{ "Pico Pen state ", PEV_PICO_PENST },
 	{ "Switch Keyboard", PEV_SWITCH_KBD },
+	{ "Capture Mouse  ", PEV_GRAB_INPUT },
 	{ NULL,                0 }
 };
 
 static int key_config_loop_wrap(int id, int keys)
 {
+	int n;
+
 	switch (id) {
 		case MA_CTRL_PLAYER1:
 			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 0);
@@ -396,7 +398,8 @@ static int key_config_loop_wrap(int id, int keys)
 			key_config_loop(me_ctrl_actions, array_size(me_ctrl_actions) - 1, 3);
 			break;
 		case MA_CTRL_EMU:
-			key_config_loop(emuctrl_actions, array_size(emuctrl_actions) - 1, -1);
+			n = (plat_has_wm() ? 1 : 2);
+			key_config_loop(emuctrl_actions, array_size(emuctrl_actions) - n, -1);
 			break;
 		default:
 			break;
@@ -541,8 +544,8 @@ int key_config_kbd_loop(int id, int keys)
 }
 
 
-const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Team player", "4 way play", NULL };
-const char *indev1_names[] = { "none", "3 button pad", "6 button pad", NULL };
+const char *indev0_names[] = { "none", "3 button pad", "6 button pad", "Mouse", "Team player", "4 way play", NULL };
+const char *indev1_names[] = { "none", "3 button pad", "6 button pad", "Mouse", NULL };
 
 static char h_play12[55];
 static char h_kbd[55];
@@ -1816,4 +1819,7 @@ void menu_init(void)
 		e_menu_options[i].name = "CPU clock";
 		e_menu_options[i].enabled = 1;
 	}
+	// suppress warnings about unused libpicofe funcs
+	(void)me_loop;
+	(void)menu_loop_romsel;
 }

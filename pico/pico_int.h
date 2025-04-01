@@ -134,7 +134,7 @@ extern m68ki_cpu_core PicoCpuMM68k, PicoCpuMS68k;
 #define SekCyclesBurnRun(c) SekCyclesLeft -= c
 
 // note: sometimes may extend timeslice to delay an irq
-#define SekEndRun(after) { \
+#define SekEndRun(after) if (SekCyclesLeft > (after)) { \
   Pico.t.m68c_cnt -= SekCyclesLeft - (after); \
   SekCyclesLeft = after; \
 }
@@ -270,7 +270,7 @@ extern SH2 sh2s[2];
 // ---------------------------------------------------------
 
 // main oscillator clock which controls timing
-#define OSC_NTSC 53693100
+#define OSC_NTSC 53693175
 #define OSC_PAL  53203424
 
 // PicoVideo.debug_p
@@ -475,7 +475,7 @@ struct PicoSound
   short len_use;                        // adjusted
   int len_e_add;                        // for non-int samples/frame
   int len_e_cnt;
-  unsigned int clkl_mult;               // z80 clocks per line in Q20
+  unsigned int clkz_mult;               // z80 clocks per sample in Q20
   unsigned int smpl_mult;               // samples per line in Q16
   unsigned int cdda_mult, cdda_div;     // 44.1 KHz resampling factor in Q16
   short dac_val, dac_val2;              // last DAC sample
@@ -547,7 +547,8 @@ struct mcd_misc
   unsigned char  need_sync;
   unsigned char  pad3;
   unsigned int   m68k_poll_clk;
-  int pad4[8];
+  unsigned int   cdda_lba_offset; // 20
+  int pad4[7];
 };
 
 typedef struct
@@ -577,6 +578,7 @@ typedef struct
   struct mcd_pcm pcm;				// 112240:
   void *cdda_stream;
   int cdda_type;
+  unsigned int cdda_frame_offs;
   int pcm_mixbuf[PCM_MIXBUF_LEN * 2];
   int pcm_mixpos;
   char pcm_mixbuf_dirty;
@@ -585,11 +587,14 @@ typedef struct
 
 // 32X
 #define P32XS_FM    (1<<15)
-#define P32XS_nCART (1<< 8)
 #define P32XS_REN   (1<< 7)
 #define P32XS_nRES  (1<< 1)
 #define P32XS_ADEN  (1<< 0)
+
+#define P32XS2_FM   (1<<15)
+#define P32XS2_nCART (1<< 8)
 #define P32XS2_ADEN (1<< 9)
+
 #define P32XS_FULL  (1<< 7) // DREQ FIFO full
 #define P32XS_68S   (1<< 2)
 #define P32XS_DMA   (1<< 1)
@@ -753,6 +758,8 @@ u32 PicoRead16_io(u32 a);
 void PicoWrite8_io(u32 a, u32 d);
 void PicoWrite16_io(u32 a, u32 d);
 u32 PicoReadPad(int i, u32 mask);
+int io_ports_pack(void *buf, size_t size);
+void io_ports_unpack(const void *buf, size_t size);
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
@@ -901,8 +908,10 @@ void cdda_start_play(int lba_base, int lba_offset, int lb_len);
 #define YM2612_NATIVE_RATE() (((Pico.m.pal?OSC_PAL:OSC_NTSC)/7 + 3*24) / (6*24))
 
 void ym2612_sync_timers(int z80_cycles, int mode_old, int mode_new);
-void ym2612_pack_state(void);
-void ym2612_unpack_state(void);
+int  ym2612_pack_timers(void *buf_, size_t size);
+void ym2612_unpack_timers(const void *buf_, size_t size);
+void ym2612_pack_state_old(void);
+void ym2612_unpack_state_old(void);
 
 #define TIMER_NO_OFLOW 0x70000000
 
@@ -928,9 +937,6 @@ void ym2612_unpack_state(void);
   Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * 1024; \
   Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * 256; \
   ym2612.OPN.ST.status &= ~3;
-
-void *YM2413GetRegs(void);
-void YM2413UnpackState(void);
 
 // videoport.c
 extern u32 SATaddr, SATmask;
@@ -972,8 +978,8 @@ int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flag
 void PicoVideoInit(void);
 void PicoVideoReset(void);
 void PicoVideoSync(int skip);
-void PicoVideoSave(void);
-void PicoVideoLoad(void);
+int PicoVideoSave(void *buf);
+void PicoVideoLoad(void *buf, int len);
 void PicoVideoCacheSAT(int load);
 
 // misc.c

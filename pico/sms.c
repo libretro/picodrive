@@ -24,6 +24,7 @@ extern void YM2413_regWrite(unsigned reg);
 extern void YM2413_dataWrite(unsigned data);
 
 extern unsigned sprites_status; // TODO put in some hdr file!
+extern int sprites_zoom, xscroll;
 
 static unsigned char vdp_data_read(void)
 {
@@ -82,21 +83,46 @@ static void vdp_data_write(unsigned char d)
   pv->pending = 0;
 }
 
+// VDP horizontal timing, total 342 px:
+//   256 px active display,
+//   23 px right border+blanking,
+//   26 px hsync,
+//   37 px left blanking+border
+// VINT is at the beginning of hsync, and HINT is one px later. Relative TO V/HINT:
+//   -18..-2 px 1st half of sprite attribute table (r5) scan
+//   -10 px sprite mode latching (r1,r0)
+//   -2 px hscroll latching (r8)
+// hscroll is probably latched internally due to it depending on the horizontal
+// scroll lock, which has this at 0 for the top 16 lines.
+// I don't think the sprite mode is really latched. The SAT scan determines the
+// relative y position within the sprite pattern, which will break since SAT
+// scanning is done in one go here, while in reality it is distributed over
+// several slots. Cache it here to avoid backward effects of later changes to r1
+// TODO: off by 2 CPU cycles according to VDPTEST?
+
 static NOINLINE void vdp_reg_write(struct PicoVideo *pv, u8 a, u8 d)
 {
   int l;
 
   pv->reg[a] = d;
   switch (a) {
-  case 0:
+  case 0: // mode control 1
     l = pv->pending_ints & (d >> 3) & 2;
     elprintf(EL_INTS, "hint %d", l);
     z80_int_assert(l);
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(10*1.5)+2)
+      sprites_zoom = (pv->reg[1] & 0x3) | (pv->reg[0] & 0x8);
     break;
-  case 1:
+  case 1: // mode control 2
     l = pv->pending_ints & (d >> 5) & 1;
     elprintf(EL_INTS, "vint %d", l);
     z80_int_assert(l);
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(10*1.5)+2)
+      sprites_zoom = (pv->reg[1] & 0x3) | (pv->reg[0] & 0x8);
+    break;
+  case 8: // horizontal scroll
+    if (z80_cyclesDone() - Pico.t.z80c_line_start < 228 - (int)(2*1.5)+2)
+      xscroll = d;
     break;
   }
 }
@@ -333,9 +359,8 @@ static u8 tape_update(int cycle)
   // compute result from sample
   if (pt->isbit) {
     phase = cycle - pt->phase; // recompute as phase might have changed above.
-    if (pt->bitsample == '0') ret = phase >= pt->cycles_sample*1/2;
-    if (pt->bitsample == '1') ret = phase >= pt->cycles_sample*3/4 ||
-                (phase >= pt->cycles_sample*1/4 && phase < pt->cycles_sample*2/4);
+    if (pt->bitsample == '0') ret = ((phase * pt->cycles_mult)>>31) & 1;
+    if (pt->bitsample == '1') ret = ((phase * pt->cycles_mult)>>30) & 1;
   } else
     ret = pt->wavsample >= 0x0800; // 1/16th of the max volume
 
@@ -428,7 +453,8 @@ static unsigned char z80_sms_in(unsigned short a)
       case 0x01:
         if ((PicoIn.AHW & PAHW_GG) && a < 0x8) { // GG I/O area
           switch (a) {
-          case 0: d = 0xff & ~(PicoIn.pad[0] & 0x80);               break;
+          case 0: d = (~PicoIn.pad[0] & 0x80) |
+			(!(Pico.m.hardware & PMS_HW_JAP) << 6);     break;
           case 1: d = Pico.ms.io_gg[1] | (Pico.ms.io_gg[2] & 0x7f); break;
           case 5: d = Pico.ms.io_gg[5] & 0xf8;                      break;
           default: d = Pico.ms.io_gg[a];                            break;
@@ -1155,42 +1181,46 @@ void PicoStateLoadedMS(void)
 {
   u8 mapper = Pico.ms.mapper;
   u8 zram_dff0[16]; // TODO xwrite also writes to zram :-/
+  u8 carthw[16];
 
   memcpy(zram_dff0, PicoMem.zram+0x1ff0, 16);
+  memcpy(carthw, Pico.ms.carthw, 16);
+  memset(Pico.ms.carthw, -1, 16);
   if (mapper == PMS_MAP_8KBRAM || mapper == PMS_MAP_32KBRAM) {
-    u16 a = Pico.ms.carthw[0] << 12;
+    u16 a = carthw[0] << 12;
     xwrite(a, *(unsigned char *)(PicoMem.vram+0x4000));
   } else if (mapper == PMS_MAP_MSX || mapper == PMS_MAP_NEMESIS) {
-    xwrite(0x0000, Pico.ms.carthw[0]);
-    xwrite(0x0001, Pico.ms.carthw[1]);
-    xwrite(0x0002, Pico.ms.carthw[2]);
-    xwrite(0x0003, Pico.ms.carthw[3]);
+    xwrite(0x0000, carthw[0]);
+    xwrite(0x0001, carthw[1]);
+    xwrite(0x0002, carthw[2]);
+    xwrite(0x0003, carthw[3]);
   } else if (mapper == PMS_MAP_KOREA) {
-    xwrite(0xa000, Pico.ms.carthw[0x0f]);
+    xwrite(0xa000, carthw[0x0f]);
   } else if (mapper == PMS_MAP_N32K) {
-    xwrite(0xffff, Pico.ms.carthw[0x0f]);
+    xwrite(0xffff, carthw[0x0f]);
   } else if (mapper == PMS_MAP_N16K) {
-    xwrite(0x3ffe, Pico.ms.carthw[0]);
-    xwrite(0x7fff, Pico.ms.carthw[1]);
-    xwrite(0xbfff, Pico.ms.carthw[2]);
+    xwrite(0x3ffe, carthw[0]);
+    xwrite(0x7fff, carthw[1]);
+    xwrite(0xbfff, carthw[2]);
   } else if (mapper == PMS_MAP_JANGGUN) {
-    xwrite(0x4000, Pico.ms.carthw[2]);
-    xwrite(0x6000, Pico.ms.carthw[3]);
-    xwrite(0x8000, Pico.ms.carthw[4]);
-    xwrite(0xa000, Pico.ms.carthw[5]);
+    xwrite(0x4000, carthw[2]);
+    xwrite(0x6000, carthw[3]);
+    xwrite(0x8000, carthw[4]);
+    xwrite(0xa000, carthw[5]);
   } else if (mapper == PMS_MAP_XOR) {
-    xwrite(0x2000, Pico.ms.carthw[0]);
+    xwrite(0x2000, carthw[0]);
   } else if (mapper == PMS_MAP_CODEM) {
-    xwrite(0x0000, Pico.ms.carthw[0]);
-    xwrite(0x4000, Pico.ms.carthw[1]);
-    xwrite(0x8000, Pico.ms.carthw[2]);
+    xwrite(0x0000, carthw[0]);
+    xwrite(0x4000, carthw[1]);
+    xwrite(0x8000, carthw[2]);
   } else if (mapper == PMS_MAP_SEGA) {
-    xwrite(0xfffc, Pico.ms.carthw[0x0c]);
-    xwrite(0xfffd, Pico.ms.carthw[0x0d]);
-    xwrite(0xfffe, Pico.ms.carthw[0x0e]);
-    xwrite(0xffff, Pico.ms.carthw[0x0f]);
+    xwrite(0xfffc, carthw[0x0c]);
+    xwrite(0xfffd, carthw[0x0d]);
+    xwrite(0xfffe, carthw[0x0e]);
+    xwrite(0xffff, carthw[0x0f]);
   }
   memcpy(PicoMem.zram+0x1ff0, zram_dff0, 16);
+  memcpy(Pico.ms.carthw, carthw, 16);
 }
 
 void PicoFrameMS(void)
@@ -1242,10 +1272,6 @@ void PicoFrameMS(void)
     else if (y > lines-32)
       PicoParseSATSMS(y-1-lines);
 
-    // render next line
-    if (y < lines_vis && !skip)
-      PicoLineSMS(y);
-
     // take over status bits from previously rendered line TODO: cycle exact?
     pv->status |= sprites_status;
     sprites_status = 0;
@@ -1277,6 +1303,11 @@ void PicoFrameMS(void)
         z80_int_assert(1);
       }
     }
+    z80_exec(Pico.t.z80c_line_start + 12); // GG Madou 1, display off after line start
+
+    // render next line
+    if (y < lines_vis && !skip)
+      PicoLineSMS(y);
 
     z80_exec(Pico.t.z80c_line_start + cycles_line);
   }
