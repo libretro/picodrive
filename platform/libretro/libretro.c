@@ -124,6 +124,8 @@ static int vout_ghosting = 0;
 static bool libretro_update_av_info = false;
 static bool libretro_update_geometry = false;
 
+static unsigned short libretro_mem_AHW = 0;
+
 #if defined(RENDER_GSKIT_PS2)
 #define VOUT_8BIT_WIDTH 328
 #define VOUT_8BIT_HEIGHT 256
@@ -1367,6 +1369,23 @@ static void set_memory_maps(void)
       mmaps.num_descriptors = sizeof(descs) / sizeof(descs[0]);
       environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmaps);
    }
+   else if (PicoIn.AHW & PAHW_32X)
+   {
+      const uint64_t mem = RETRO_MEMDESC_SYSTEM_RAM;
+      const uint64_t sav = RETRO_MEMDESC_SAVE_RAM;
+      struct retro_memory_map mmaps;
+      struct retro_memory_descriptor descs[] = {
+         { mem, PicoMem.ram,        0, 0x00FF0000, 0, 0, 0x10000,      "68KRAM" },
+         { mem, Pico32xMem->sdram,  0, 0x06000000, 0, 0, 0x40000,      "SDRAM" },
+         { sav, Pico.sv.data,       0, 0x00000000, 0, 0, Pico.sv.size, "CARTRAM" },
+      };
+
+      mmaps.descriptors = descs;
+      mmaps.num_descriptors = sizeof(descs) / sizeof(descs[0]);
+      environ_cb(RETRO_ENVIRONMENT_SET_MEMORY_MAPS, &mmaps);
+   }
+
+   libretro_mem_AHW = PicoIn.AHW;
 }
 
 bool retro_load_game(const struct retro_game_info *info)
@@ -1665,6 +1684,7 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
 
 void retro_unload_game(void)
 {
+    libretro_mem_AHW = 0;
 }
 
 unsigned retro_get_region(void)
@@ -2330,6 +2350,9 @@ void retro_run(void)
    bool updated = false;
    int pad, i, padcount;
    static void *buff;
+
+   if (PicoIn.AHW != libretro_mem_AHW)
+      set_memory_maps();
 
    PicoIn.skipFrame = 0;
 
