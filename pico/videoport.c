@@ -405,7 +405,7 @@ int PicoVideoFIFOHint(void)
   // only need to refresh sprite position if we are synced
   if (Pico.est.DrawScanline == Pico.m.scanline && !(pv->status & SR_VB))
     PicoDrawRefreshSprites();
- 
+
   // if CPU is waiting for the bus, advance CPU and FIFO until bus is free
   if (pv->status & PVS_CPUWR)
     burn = PicoVideoFIFODrain(4, lc, 0);
@@ -603,7 +603,7 @@ static void DmaSlow(int len, u32 source)
           !((source ^ (source + len-1)) & ~mask))
       {
         // most used DMA mode
-        memcpy((char *)r + a, base + (source & mask), len * 2);
+        memcpy((char *)r + (u16)a, base + (source & mask), len * 2);
         a += len * 2;
         break;
       }
@@ -1120,10 +1120,28 @@ PICO_INTERNAL_ASM u32 PicoVideoRead(u32 a)
     unsigned int c;
     u32 d;
 
+    // invalidate cached value if on a new scanline
+    if ((pv->status & PVS_HVLATCH) && pv->hv_latch >> 8 != Pico.m.scanline)
+      pv->status &= ~PVS_HVLATCH;
+
     c = SekCyclesDone() - Pico.t.m68c_line_start;
-    if (pv->reg[0]&2)
-         d = pv->hv_latch;
-    else d = VdpFIFO.fifo_hcounts[c/clkdiv] | (pv->v_counter << 8);
+    if (pv->reg[0]&2) // latched value from TH transition
+      d = pv->hv_latch;
+    else if (pv->status & PVS_HVLATCH) { // cached value from light gun
+      c += 28; // estimate for 68k insn time
+      // return cached value, but add in irq latency; since the irq was fired
+      // at the start of the line, the latency in cycles already is in c.
+      d = pv->hv_latch & 0xff;
+      if (pv->reg[12]&1) { // H40/H32?
+        c = DIVQ32(c * slots40, slcpu); // slots since line start
+        if (d < gapstart40 && d+c >= gapstart40) d += gapend40-gapstart40;
+      } else {
+        c = DIVQ32(c * slots32, slcpu);
+        if (d < gapstart32 && d+c >= gapstart32) d += gapend32-gapstart32;
+      }
+      d = (pv->hv_latch & 0xff00) | ((d+c) & 0x00ff);
+    } else // freerunning
+      d = VdpFIFO.fifo_hcounts[c/clkdiv] | (pv->v_counter << 8);
 
     elprintf(EL_HVCNT, "hv: %02x %02x [%u] @ %06x", d, pv->v_counter, SekCyclesDone(), SekPc);
     return d;
@@ -1193,16 +1211,45 @@ unsigned char PicoVideoRead8HV_L(int is_from_z80)
 
 void PicoVideoReset(void)
 {
-  Pico.video.pending_ints=0;
-  Pico.video.reg[1] &= ~0x40; // TODO verify display disabled after reset
-  Pico.video.reg[10] = 0xff; // HINT is turned off after reset
-  Pico.video.status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
+  struct PicoVideo *pv = &Pico.video;
+
+  pv->pending_ints=0;
+  pv->reg[1] &= ~0x40; // TODO verify display disabled after reset
+  pv->reg[10] = 0xff; // HINT is turned off after reset
+  pv->status = 0x3428 | Pico.m.pal; // 'always set' bits | vblank | collision | pal
 
   memset(&VdpFIFO, 0, sizeof(VdpFIFO));
   Pico.m.dirtyPal = 1;
 
   PicoDrawBgcDMA(NULL, 0, 0, 0, 0);
-  PicoVideoFIFOMode(Pico.video.reg[1]&0x40, Pico.video.reg[12]&1);
+  PicoVideoFIFOMode(pv->reg[1]&0x40, pv->reg[12]&1);
+}
+
+// Process triggering of the !HL pin at pixel x,y of screen
+void PicoVideoTriggerTH(int x, int y)
+{
+  struct PicoVideo *pv = &Pico.video;
+  int slot;
+
+  // TODO x/y scaling for V28/V30, H32/H40, soft/hardscaling?
+  if (!(pv->reg[12]&1)) { // H32, convert from 320 to 256 px per line
+    slot = DIVQ32(x * 256, 320) / 2;
+    if (slot >= gapstart32) slot += gapend32-gapstart32;
+  } else {
+    slot = x / 2;
+    if (slot >= gapstart40) slot += gapend40-gapstart40;
+  }
+
+  // This is only called at the start of a scanline, hence the irq isn't
+  // cycle correct. There are games reading hv unlatched in the irq handler,
+  // so latch mouse here, and fix the value up when the irq handler reads it.
+  pv->hv_latch = (slot & 0xff) | (y << 8);
+  pv->status |= PVS_HVLATCH;
+
+  // irq here for speed reasons. It's early, but that shouldn't matter much.
+  // TODO is irq really lost if another irq is already pending?
+  if ((Pico.video.reg[11]&8) && SekIrqLevel < 2)
+    SekInterrupt(2);
 }
 
 void PicoVideoCacheSAT(int load)

@@ -129,7 +129,6 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
   unsigned short *dst = est->DrawLineDest;
   unsigned short *pal = Pico32xMem->pal_native;
   unsigned char  *pmd = est->HighCol + 8;
-  unsigned short *palmd = est->HighPal;
   unsigned short *dram, *p32x;
   unsigned char   mdbg;
   int h32 = !(Pico.video.reg[12] & 0x1);

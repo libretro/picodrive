@@ -302,6 +302,7 @@ extern SH2 sh2s[2];
 #define PVS_DMAFILL   (1 << 20) // DMA fill is waiting for fill data
 #define PVS_DMABG     (1 << 21) // background DMA operation is running
 #define PVS_FIFORUN   (1 << 22) // FIFO is processing
+#define PVS_HVLATCH   (1 << 23) // next hv read is latched (for lightguns)
 
 struct PicoVideo
 {
@@ -354,6 +355,7 @@ struct PicoMisc
 #define PMS_HW_FM	0x8   // FM sound
 #define PMS_HW_TMS	0x10  // assume TMS9918
 #define PMS_HW_3D	0x20  // 3D glasses
+#define PMS_HW_LG	0x40  // light phaser
 #define PMS_HW_FMUSED	0x80  // FM sound accessed
 
 #define PMS_MAP_AUTO	0
@@ -654,9 +656,7 @@ struct Pico32x
   unsigned int pad[4];
   unsigned int dmac0_fifo_ptr;
   unsigned short vdp_fbcr_fake;
-  unsigned short pad2;
-  unsigned char comm_dirty;
-  unsigned char pad3;            // was comm_dirty_sh2
+  unsigned short wdt_cycle[2];   // wdt clocking (was comm_dirty)
   unsigned char pwm_irq_cnt;
   unsigned char pad1;
   unsigned short pwm_p[2];       // pwm pos in fifo
@@ -757,9 +757,17 @@ u32 PicoRead8_io(u32 a);
 u32 PicoRead16_io(u32 a);
 void PicoWrite8_io(u32 a, u32 d);
 void PicoWrite16_io(u32 a, u32 d);
+void PicoPortUpdate(void);
+void PicoPortTrigger(void);
 u32 PicoReadPad(int i, u32 mask);
+void io_ports_reset(void);
 int io_ports_pack(void *buf, size_t size);
 void io_ports_unpack(const void *buf, size_t size);
+extern int port_type[3];
+extern int port_lightgun;
+
+#define PicoPortTick() if (port_lightgun && \
+            Pico.m.scanline == PicoIn.mouseInt[1]+PicoIn.guny) PicoPortTrigger()
 
 // pico/memory.c
 PICO_INTERNAL void PicoMemSetupPico(void);
@@ -977,6 +985,7 @@ void PicoVideoFIFOMode(int active, int h40);
 int PicoVideoFIFOWrite(int count, int byte_p, unsigned sr_mask, unsigned sr_flags);
 void PicoVideoInit(void);
 void PicoVideoReset(void);
+void PicoVideoTriggerTH(int x, int y);
 void PicoVideoSync(int skip);
 int PicoVideoSave(void *buf);
 void PicoVideoLoad(void *buf, int len);
@@ -1023,6 +1032,7 @@ void PicoPowerMS(void);
 void PicoResetMS(void);
 void PicoMemSetupMS(void);
 void PicoStateLoadedMS(void);
+void PicoPrepareMS(void);
 void PicoFrameMS(void);
 void PicoFrameDrawOnlyMS(void);
 int PicoPlayTape(const char *fname);
@@ -1047,6 +1057,9 @@ enum p32x_event {
   P32X_EVENT_PWM,
   P32X_EVENT_FILLEND,
   P32X_EVENT_HINT,
+  P32X_EVENT_VINT,
+  P32X_EVENT_MTIMER,
+  P32X_EVENT_STIMER,
   P32X_EVENT_COUNT,
 };
 extern unsigned int p32x_event_times[P32X_EVENT_COUNT];
@@ -1070,6 +1083,7 @@ void p32x_reset_sh2s(void);
 void p32x_event_schedule(unsigned int now, enum p32x_event event, int after);
 void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after);
 void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles);
+void p32x_schedule_vint(SH2 *sh2, unsigned int m68k_cycles);
 
 #define p32x_sh2_ready(sh2, cycles) \
   (CYCLES_GT(cycles,sh2->m68krcycles_done) && \
@@ -1124,9 +1138,11 @@ void p32x_pwm_state_loaded(void);
 // 32x/sh2soc.c
 void p32x_dreq0_trigger(void);
 void p32x_dreq1_trigger(void);
-void p32x_timers_recalc(void);
-void p32x_timer_do(SH2 *sh2, unsigned int m68k_slice);
+void p32x_timer_recalc(SH2 *sh2);
+void p32x_timer_do(SH2 *sh2, unsigned int now);
+void p32x_timer_irq(SH2 *sh2, unsigned int now);
 void sh2_peripheral_reset(SH2 *sh2);
+void sh2_peripheral_state_loaded(void);
 u32 REGPARM(2) sh2_peripheral_read8(u32 a, SH2 *sh2);
 u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2);
 u32 REGPARM(2) sh2_peripheral_read32(u32 a, SH2 *sh2);

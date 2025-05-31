@@ -78,7 +78,6 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_EN_FM_DAC      (1<<24) //x00 0000
 #define POPT_EN_FM_FILTER   (1<<25)
 #define POPT_EN_KBD         (1<<26)
-#define POPT_EN_MOUSE       (1<<27)
 
 #define PAHW_MCD    (1<<0)
 #define PAHW_32X    (1<<1)
@@ -114,8 +113,9 @@ typedef struct PicoInterface
 	unsigned short AHW;            // active addon hardware: PAHW_* bitfield
 
 	unsigned short kbd;            // SC-3000 or Pico Keyboard
-	int mouse[4];                  // x,y mouse coordinates
-	int mouseInt[4];               // internal copy
+	short mouse[4];                // x,y mouse coordinates
+	short mouseInt[4];             // internal copy
+	short gunx, guny;              // light gun offsets
 
 	unsigned short quirks;         // game-specific quirks: PQUIRK_*
 	unsigned short overclockM68k;  // overclock the emulated 68k, in %
@@ -364,8 +364,11 @@ enum input_device {
   PICO_INPUT_PAD_3BTN,
   PICO_INPUT_PAD_6BTN,
   PICO_INPUT_MOUSE,
+  PICO_INPUT_LIGHT_GUN,
+  PICO_INPUT_JUSTIFIER,
   PICO_INPUT_PAD_TEAM,
   PICO_INPUT_PAD_4WAY,
+  PICO_INPUT_COUNT
 };
 void PicoSetInputDevice(int port, enum input_device device);
 

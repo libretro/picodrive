@@ -62,7 +62,7 @@ void pcd_pcm_sync(unsigned int to)
   if ((int)(to - cycles) < 384)
     return;
 
-  steps = (to - cycles) * ((1LL << 32) / 384) >> 32;
+  steps = DIVQ32(to - cycles, 384);
   if (Pico_mcd->pcm_mixpos + steps > PCM_MIXBUF_LEN)
     // shouldn't happen, but occasionally does
     steps = PCM_MIXBUF_LEN - Pico_mcd->pcm_mixpos;

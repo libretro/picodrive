@@ -275,6 +275,7 @@ int config_readlrom(const char *fname)
 static int custom_read(menu_entry *me, const char *var, const char *val)
 {
 	char *tmp;
+	int i;
 
 	switch (me->id)
 	{
@@ -364,12 +365,23 @@ static int custom_read(menu_entry *me, const char *var, const char *val)
 			currentConfig.max_skip = atoi(val);
 			return 1;
 
-		case MA_CTRL_KEYBOARD:
+		case MA_OPT_KEYBOARD:
 			currentConfig.keyboard = 0;
 			if (strcasecmp(val, "physical") == 0)
 				currentConfig.keyboard = 2;
 			else if (strcasecmp(val, "virtual") == 0)
 				currentConfig.keyboard = 1;
+			return 1;
+
+		case MA_OPT_INPUT_DEV0:
+			for (i = 0; indev_names[i]; i++)
+				if (strcasecmp(val, indev_names[i]) == 0)
+					currentConfig.input_dev0 = i;
+			return 1;
+		case MA_OPT_INPUT_DEV1:
+			for (i = 0; indev_names[i]; i++)
+				if (strcasecmp(val, indev_names[i]) == 0)
+					currentConfig.input_dev1 = i;
 			return 1;
 
 		/* PSP */

@@ -155,8 +155,8 @@ static u8 vdp_hcounter(int cycles)
 {
   // 171 slots per scanline of 228 clocks, counted 0xf4-0x93, 0xe9-0xf3
   // this matches h counter tables in SMSVDPTest:
-  //  hc =   (cycles+2) *   171    /228      -1 + 0xf4;
-  int hc = (((cycles+2) * ((171<<8)/228))>>8)-1 + 0xf4; // Q8 to avoid dividing
+  //  hc =        (cycles+2) * 171 /228  -1 + 0xf4;
+  int hc = DIVQ32((cycles+2) * 171, 228) -1 + 0xf4;
   if (hc > 0x193) hc += 0xe9-0x93-1;
   return hc;
 }
@@ -503,6 +503,20 @@ static unsigned char z80_sms_in(unsigned short a)
             d = (d & ~0x08) | ((Pico.ms.io_ctl >> 3) & 0x08);
           if (Pico.ms.io_ctl & 0x08) d |= 0x80; // TH as input is unconnected
           if (Pico.ms.io_ctl & 0x02) d |= 0x40;
+          if (Pico.m.hardware & PMS_HW_LG) { // light phaser
+            // TODO mx/my scaling is wrong if V28/V30 mode is used?
+            int mx = DIVQ32((PicoIn.mouseInt[0]+PicoIn.gunx) * 256, 320);
+            int my = DIVQ32((PicoIn.mouseInt[1]+PicoIn.guny) * 192, 224);
+            int x = vdp_hcounter(z80_cyclesDone() - Pico.t.z80c_line_start);
+            int dx = 2*x - mx;
+            int dy = Pico.m.scanline - my;
+            int th = 0xc0; // TODO set bits according to port usage
+            d |= th; // TH input, high if no light detected
+            if (dy > -4 && dy < 4 && dx > -40 && dx < 40) {
+              d &= ~th; // TH falling -> save hcounter
+              Pico.ms.vdp_hlatch = (mx >> 1) + 24;
+            }
+          }
         } else {
           int i; // read kbd 4 bits
           kbd_update();
@@ -1223,6 +1237,13 @@ void PicoStateLoadedMS(void)
   memcpy(Pico.ms.carthw, carthw, 16);
 }
 
+void PicoPrepareMS(void)
+{
+  Pico.m.hardware &= ~PMS_HW_LG;
+  if (port_type[0] == PICO_INPUT_LIGHT_GUN || port_type[1] == PICO_INPUT_LIGHT_GUN)
+    Pico.m.hardware |= PMS_HW_LG;
+}
+
 void PicoFrameMS(void)
 {
   struct PicoVideo *pv = &Pico.video;
@@ -1236,6 +1257,7 @@ void PicoFrameMS(void)
   int y;
 
   PsndStartFrame();
+  PicoPortUpdate();
 
   // for SMS the pause button generates an NMI, for GG ths is not the case
   nmi = (PicoIn.pad[0] >> 7) & 1;
@@ -1367,7 +1389,7 @@ int PicoPlayTape(const char *fname)
   }
 
   pt->cycles_sample = (Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15) / rate;
-  pt->cycles_mult = (1LL<<32) / pt->cycles_sample;
+  pt->cycles_mult = INVQ32(pt->cycles_sample);
   pt->cycle = Pico.t.z80c_aim;
   pt->phase = Pico.t.z80c_aim;
   pt->pause = 0;
@@ -1410,7 +1432,7 @@ int PicoRecordTape(const char *fname)
   }
 
   pt->cycles_sample = (Pico.m.pal ? OSC_PAL/15 : OSC_NTSC/15) / rate;
-  pt->cycles_mult = (1LL<<32) / pt->cycles_sample;
+  pt->cycles_mult = INVQ32(pt->cycles_sample);
   pt->cycle = Pico.t.z80c_aim;
   pt->phase = Pico.t.z80c_aim;
   pt->pause = 0;

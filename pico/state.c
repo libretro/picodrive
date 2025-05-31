@@ -429,7 +429,7 @@ static int state_load(void *file)
   int len_check;
   int retval = -1;
   char header[8];
-  int ver, has_32x = 0;
+  int ver, has_32x = 0, has_iov2 = 0;
   int len, len_vdp = 0;
 
   memset(buff_m68k, 0, sizeof(buff_m68k));
@@ -483,6 +483,13 @@ static int state_load(void *file)
       case CHUNK_VDP:     CHECKED_READ2((len_vdp = len), buff_vdp); break;
 
       case CHUNK_IOPORTS: CHECKED_READ_BUFF(PicoMem.ioports); break;
+      case CHUNK_IOPORTSv2:
+        CHECKED_READ(len, buf);
+        io_ports_unpack(buf, len);
+        has_iov2 = 1;
+        break;
+
+
       case CHUNK_PSG:     CHECKED_READ2(28*4, sn76496_regs); break;
       case CHUNK_YM2413:
         CHECKED_READ(len, buf);
@@ -496,7 +503,6 @@ static int state_load(void *file)
         break;
       case CHUNK_FM_TIMERS: CHECKED_READ(len, buf); ym2612_unpack_timers(buf, len); break;
       case CHUNK_FMv3:      CHECKED_READ(len, buf); YM2612PicoStateLoad3(buf, len); break;
-      case CHUNK_IOPORTSv2: CHECKED_READ(len, buf); io_ports_unpack(buf, len); break;
 
       case CHUNK_PICO_PCM:
         CHECKED_READ(len, buf);
@@ -640,6 +646,10 @@ readend:
     Pico.video.status |= ((Pico.video.reg[1] >> 3) ^ SR_VB) & SR_VB;
     Pico.video.status |= (Pico.video.pending_ints << 2) & SR_F;
   }
+
+  // kludge: if there is no new ports data save, they must be initialised
+  if (!has_iov2)
+    io_ports_reset();
 
   Pico.m.dirtyPal = 1;
   retval = 0;

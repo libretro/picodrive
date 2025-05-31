@@ -239,6 +239,7 @@ jobs:
       run: |
         git config --global --add safe.directory $PWD
         ver=$(cut -d'"' -f2 platform/common/version.h)-$(git rev-parse --short HEAD)
+        # toolchain has EGL, but retrofw 2.2 has not, so disable it
         ./configure --platform=retrofw
         make -j$(getconf _NPROCESSORS_ONLN)
         mv PicoDrive.opk PicoDrive-retrofw-$ver.opk

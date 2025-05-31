@@ -35,6 +35,8 @@ extern int g_screen_ppitch; // pitch in pixels
 #define EOPT_WIZ_TEAR_FIX (1<<19)
 #define EOPT_EXT_FRMLIMIT (1<<20) // no internal frame limiter (limited by snd, etc)
 #define EOPT_PICO_PEN     (1<<21)
+#define EOPT_MOUSE        (1<<22)
+#define EOPT_GUN_CURSOR   (1<<23)
 
 enum {
 	EOPT_SCALE_NONE = 0,
@@ -94,6 +96,7 @@ typedef struct _currentConfig_t {
 	int ghosting;
 	int analog_deadzone;
 	int keyboard;
+	int gunx, guny;
 	int msh2_khz;
 	int ssh2_khz;
 	int overclock_68k;
@@ -196,6 +199,7 @@ void plat_finish(void);
 void plat_show_cursor(int on);
 int plat_grab_cursor(int on);
 int plat_has_wm(void);
+void plat_set_window(int w, int h);
 
 /* used before things blocking for a while (these funcs redraw on return) */
 void plat_status_msg_busy_first(const char *msg);

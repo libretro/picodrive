@@ -228,6 +228,16 @@ void pemu_finalize_frame(const char *fps, const char *notice)
 			draw_pico_ptr();
 	}
 
+	// TODO correct ptr position for hard/soft/no scaling?
+#define is_lightgun(d) (d == PICO_INPUT_LIGHT_GUN || d == PICO_INPUT_JUSTIFIER)
+	if ((currentConfig.EmuOpt & EOPT_GUN_CURSOR) &&
+	    (is_lightgun(currentConfig.input_dev0) || is_lightgun(currentConfig.input_dev1))) {
+		pico_inp_mode = 2;
+		pico_pen_x = PicoPicohw.pen_pos[0] = PicoIn.mouseInt[0];
+		pico_pen_y = PicoPicohw.pen_pos[1] = PicoIn.mouseInt[1];
+		draw_pico_ptr();
+	}
+
 	// draw virtual keyboard on display
 	if (kbd_mode && currentConfig.keyboard == 1 && vkbd)
 		vkbd_draw(vkbd);
@@ -486,7 +496,7 @@ void pemu_loop_prep(void)
 {
 	apply_renderer();
 	plat_video_clear_buffers();
-	plat_show_cursor(!(PicoIn.opt & POPT_EN_MOUSE));
+	plat_show_cursor(!(currentConfig.EmuOpt & EOPT_MOUSE));
 }
 
 void pemu_loop_end(void)

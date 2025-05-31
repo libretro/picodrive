@@ -37,10 +37,8 @@
 
 #ifndef _WIN32
 #define PATH_SEP      "/"
-#define PATH_SEP_C    '/'
 #else
 #define PATH_SEP      "\\"
-#define PATH_SEP_C    '\\'
 #endif
 
 #define STATUS_MSG_TIMEOUT 2000
@@ -134,7 +132,7 @@ static void fname_ext(char *dst, int dstlen, const char *prefix, const char *ext
 	}
 
 	p = fname + strlen(fname) - 1;
-	for (; p >= fname && *p != PATH_SEP_C; p--)
+	for (; p >= fname && *p != *PATH_SEP; p--)
 		;
 	p++;
 	strncpy(dst + prefix_len, p, dstlen - prefix_len - 1);
@@ -745,6 +743,8 @@ int emu_read_config(const char *rom_fname, int no_defaults)
 
 	pemu_validate_config();
 	PicoIn.overclockM68k = currentConfig.overclock_68k;
+	PicoIn.gunx = currentConfig.gunx;
+	PicoIn.guny = currentConfig.guny;
 
 	// some sanity checks
 	if (currentConfig.volume < 0 || currentConfig.volume > 99)
@@ -1202,7 +1202,7 @@ void run_events_pico(unsigned int events)
 		return;
 
 	/* handle other input modes using the pen */
-	if (PicoIn.opt & POPT_EN_MOUSE) {
+	if (currentConfig.EmuOpt & EOPT_MOUSE) {
 		pico_pen_x = PicoIn.mouse[0];
 		pico_pen_y = PicoIn.mouse[1];
 	} else {
@@ -1324,12 +1324,12 @@ static void run_events_ui(unsigned int which)
 	}
 	if (which & PEV_GRAB_INPUT)
 	{
-		if (PicoIn.opt & POPT_EN_MOUSE) {
+		if (currentConfig.EmuOpt & EOPT_MOUSE) {
 			grab_mode = !grab_mode;
-			in_update_analog(0, 2, &mouse_x);
-			in_update_analog(0, 3, &mouse_y);
-			in_update_analog(0, 0, &mouse_x);
-			in_update_analog(0, 1, &mouse_y);
+			in_update_pointer(0, 2, &mouse_x);
+			in_update_pointer(0, 3, &mouse_y);
+			in_update_pointer(0, 0, &mouse_x);
+			in_update_pointer(0, 1, &mouse_y);
 			emu_status_msg("Mouse capture %s", grab_mode ? "on" : "off");
 		} else {
 			grab_mode = 0;
@@ -1356,13 +1356,34 @@ static void run_events_ui(unsigned int which)
 		engineState = PGS_Menu;
 }
 
+static int map_pointer_buttons(int msbtns, int device)
+{
+	int buttons = 0;
+
+	if ((PicoIn.AHW & PAHW_PICO) && device == PICO_INPUT_MOUSE) {
+		if (msbtns & 1) buttons |= 1<<GBTN_C;	// pen button
+		if (msbtns & 2) buttons |= 1<<GBTN_B;	// red button
+		if (msbtns & 4) buttons |= 1<<GBTN_START; // pen up/down
+	} else if ((PicoIn.AHW & PAHW_SMS) || device == PICO_INPUT_MOUSE) {
+		if (msbtns & 1) buttons |= 1<<GBTN_B;	// as Sega Mouse
+		if (msbtns & 2) buttons |= 1<<GBTN_START;
+		if (msbtns & 4) buttons |= 1<<GBTN_C;
+	} else if (device == PICO_INPUT_LIGHT_GUN || device == PICO_INPUT_JUSTIFIER) {
+		if (msbtns & 1) buttons |= 1<<GBTN_A;	// as Sega Menacer
+		if (msbtns & 2) buttons |= 1<<GBTN_B;
+		if (msbtns & 4) buttons |= 1<<GBTN_START;
+	}
+
+	return buttons;
+}
+
 void emu_update_input(void)
 {
 	static int prev_events = 0;
 	int actions[IN_BINDTYPE_COUNT] = { 0, };
 	int actions_kbd[IN_BIND_LAST] = { 0, };
 	int pl_actions[4];
-	int count_kbd = 0, buttons = 0;
+	int count_kbd = 0;
 	int events, i = 0;
 
 	in_update(actions);
@@ -1375,39 +1396,23 @@ void emu_update_input(void)
 	events = actions[IN_BINDTYPE_EMU] & PEV_MASK;
 
 	// update mouse coordinates if there is an emulated mouse
-	if (PicoIn.opt & POPT_EN_MOUSE) {
+	if (currentConfig.EmuOpt & EOPT_MOUSE) {
 		if (!grab_mode) {
-			in_update_analog(0, 0, &PicoIn.mouse[0]);
-			in_update_analog(0, 1, &PicoIn.mouse[1]);
-			// scale mouse coordinates from -1024..1024 to 0..screen_w/h
-			PicoIn.mouse[0] = (PicoIn.mouse[0]+1024) * g_screen_width /2048;
-			PicoIn.mouse[1] = (PicoIn.mouse[1]+1024) * g_screen_height/2048;
+			in_update_pointer(0, 0, &mouse_x);
+			in_update_pointer(0, 1, &mouse_y);
 		} else {
 			int xrel, yrel;
-			in_update_analog(0, 2, &xrel);
-			in_update_analog(0, 3, &yrel);
+			in_update_pointer(0, 2, &xrel);
+			in_update_pointer(0, 3, &yrel);
 			mouse_x += xrel, mouse_y += yrel;
-			// scale mouse coordinates from -1024..1024 to 0..screen_w/h
-			PicoIn.mouse[0] = (mouse_x+1024) * g_screen_width /2048;
-			PicoIn.mouse[1] = (mouse_y+1024) * g_screen_height/2048;
 		}
+		// scale mouse coordinates from -1024..1024 to 0..screen_w/h
+		PicoIn.mouse[0] = (mouse_x+1024) * 320/2048;
+		PicoIn.mouse[1] = (mouse_y+1024) * 240/2048;
 
-		in_update_analog(0, -1, &i); // get mouse buttons, bit 2-0 = RML
-		if (PicoIn.AHW & PAHW_PICO) {
-			// TODO is maintaining 2 different mappings necessary?
-			if (i & 1) buttons |= 1<<GBTN_C;        // pen button
-			if (i & 2) buttons |= 1<<GBTN_B;	// red button
-			if (i & 4) buttons |= 1<<GBTN_START;    // pen up/down
-		} else {
-			if (i & 1) buttons |= 1<<GBTN_B;	// as Sega Mouse
-			if (i & 2) buttons |= 1<<GBTN_START;
-			if (i & 4) buttons |= 1<<GBTN_C;
-		}
-
-		if (currentConfig.input_dev0 == PICO_INPUT_MOUSE)
-			pl_actions[0] |= buttons;
-		if (currentConfig.input_dev1 == PICO_INPUT_MOUSE)
-			pl_actions[1] |= buttons;
+		in_update_pointer(0, -1, &i); // get mouse buttons, bit 2-0 = RML
+		pl_actions[0] |= map_pointer_buttons(i, currentConfig.input_dev0);
+		pl_actions[1] |= map_pointer_buttons(i, currentConfig.input_dev1);
 	}
 
 	if (kbd_mode) {
@@ -1619,8 +1624,10 @@ void emu_sound_wait(void)
 
 static void emu_loop_prep(void)
 {
+	static int pointer[] = { PICO_INPUT_MOUSE, PICO_INPUT_LIGHT_GUN, PICO_INPUT_JUSTIFIER };
 	static int pal_old = -1;
 	static int filter_old = -1;
+	int i;
 
 	if (currentConfig.CPUclock != plat_target_cpu_clock_get())
 		plat_target_cpu_clock_set(currentConfig.CPUclock);
@@ -1646,12 +1653,14 @@ static void emu_loop_prep(void)
 	if (((PicoIn.AHW & PAHW_PICO) || (PicoIn.AHW & PAHW_SC)) && currentConfig.keyboard)
 		PicoIn.opt |= POPT_EN_KBD;
 
-	PicoIn.opt &= ~POPT_EN_MOUSE;
-	if (!(PicoIn.AHW & PAHW_8BIT) && (currentConfig.input_dev0 == PICO_INPUT_MOUSE ||
-					currentConfig.input_dev1 == PICO_INPUT_MOUSE)) {
-		PicoIn.opt |= POPT_EN_MOUSE;
-		plat_grab_cursor(grab_mode);
-	}
+	currentConfig.EmuOpt &= ~EOPT_MOUSE;
+	for (i = 0; i < ARRAY_SIZE(pointer); i++)
+		if ((currentConfig.input_dev0 == pointer[i] ||
+					currentConfig.input_dev1 == pointer[i])) {
+			currentConfig.EmuOpt |= EOPT_MOUSE;
+			plat_grab_cursor(grab_mode);
+			break;
+		}
 
 	pemu_loop_prep();
 }
@@ -1828,7 +1837,7 @@ void emu_loop(void)
 			}
 			if (diff > target_frametime + vsync_delay) {
 				// still too fast
-				plat_wait_till_us(timestamp + (diff - target_frametime));
+				plat_wait_till_us(timestamp + (diff - target_frametime - vsync_delay));
 			}
 		}
 

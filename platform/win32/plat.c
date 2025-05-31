@@ -126,31 +126,68 @@ int scandir(const char *dir, struct dirent ***namelist, int (*select)(const stru
     char path[MAX_PATH];
     struct dirent **entries = NULL;
     size_t count = 0;
+    int i;
 
-    snprintf(path, sizeof(path), "%s\\*", dir);
-    handle = FindFirstFile(path, &info);
-    if (handle == INVALID_HANDLE_VALUE)
-        return -1;
+    if (dir == NULL || *dir == '\0') {
+        // on top level give a list of available drives
+        DWORD drives = GetLogicalDrives();
+        if (drives == 0) return -1;
 
-    do {
-        struct dirent *entry = (struct dirent *)malloc(sizeof(struct dirent));
-        if (!entry) {
-            free(entries);
-            FindClose(handle);
-            return -1;
+        entries = malloc(sizeof(*entries) * 26);
+        if (!entries) return -1;
+
+        for (i = 0; i < 26; ++i) {
+            int type;
+
+            if (!(drives & (1 << i)))
+                continue;
+
+            snprintf(path, MAX_PATH, "%c:\\", 'A' + i);
+            type = GetDriveTypeA(path);
+            if (type == DRIVE_NO_ROOT_DIR || type == DRIVE_UNKNOWN)
+                continue;
+
+            struct dirent *entry = (struct dirent *)malloc(sizeof(struct dirent));
+            if (!entry)
+                goto err;
+
+            snprintf(entry->d_name, MAX_PATH, "%c:", 'A' + i);
+            entry->d_type = DT_DIR;
+
+            if (!select || select(entry))
+                entries[count++] = entry;
+            else
+                free(entry);
         }
+    } else {
 
-        strcpy(entry->d_name, info.cFileName);
-        entry->d_type = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? DT_DIR : DT_REG;
+        // create a list of objects in the directory
+        snprintf(path, sizeof(path), "%s\\*", dir);
+        handle = FindFirstFile(path, &info);
+        if (handle == INVALID_HANDLE_VALUE)
+            return -1;
 
-        if (!select || select(entry)) {
-            entries = realloc(entries, (count + 1) * sizeof(struct dirent *));
-            entries[count++] = entry;
-        } else
-            free(entry);
-    } while (FindNextFile(handle, &info));
+        do {
+            struct dirent *entry = (struct dirent *)malloc(sizeof(struct dirent));
+            if (!entry) {
+                FindClose(handle);
+                goto err;
+            }
 
-    FindClose(handle);
+            strcpy(entry->d_name, info.cFileName);
+            entry->d_type = (info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) ? DT_DIR : DT_REG;
+
+            if (!select || select(entry)) {
+                struct dirent **_entries = realloc(entries, (count + 1) * sizeof(struct dirent *));
+                if (!_entries) goto err;
+                entries = _entries;
+                entries[count++] = entry;
+            } else
+                free(entry);
+        } while (FindNextFile(handle, &info));
+
+        FindClose(handle);
+    }
 
     // Sort entries if a comparison function is provided
     if (compar) {
@@ -159,6 +196,15 @@ int scandir(const char *dir, struct dirent ***namelist, int (*select)(const stru
 
     *namelist = entries;
     return count;
+
+err:
+    if (entries) {
+        while (count > 0)
+            if (entries[--count])
+                free(entries[count]);
+        free(entries);
+    }
+    return -1;
 }
 
 int alphasort(const struct dirent **a, const struct dirent **b) {

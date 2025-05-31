@@ -70,7 +70,8 @@ static void dmac_te_irq(SH2 *sh2, struct dma_chan *chan)
                dmac->vcrdma0 : dmac->vcrdma1;
 
   elprintf(EL_32XP, "dmac irq %d %d", level, vector);
-  sh2_internal_irq(sh2, level, vector & 0x7f);
+  if (level)
+    sh2_internal_irq(sh2, level, vector & 0x7f);
 }
 
 static void dmac_transfer_complete(SH2 *sh2, struct dma_chan *chan)
@@ -189,53 +190,78 @@ static void dmac_trigger(SH2 *sh2, struct dma_chan *chan)
     chan->sar, chan->dar, chan->tcr, chan->chcr, sh2->pc);
 }
 
-// FIXME, timer state, in unused peri_regs space to have it in state save/load
-#define timer_cycles(sh2) *((u32 *)&(sh2)->peri_regs[0x1c])
+// wdt timers for the 2 SH2's
+
 static u32 timer_tick_shift[2];
+static u32 timer_last_cycle[2];
 
-// timers
-void p32x_timers_recalc(void)
+void p32x_timer_recalc(SH2 *sh2)
 {
-  int tmp, i;
+  int tmp, i = sh2->is_slave;
 
-  // SH2 timer step
-  for (i = 0; i < 2; i++) {
-    sh2s[i].state &= ~SH2_TIMER_RUN;
-    if (PREG8(sh2s[i].peri_regs, 0x80) & 0x20) // TME
-      sh2s[i].state |= SH2_TIMER_RUN;
-    tmp = PREG8(sh2s[i].peri_regs, 0x80) & 7;
+  if (PREG8(sh2->peri_regs, 0x80) & 0x20) { // TME
+    // SH2 timer step
+    tmp = PREG8(sh2->peri_regs, 0x80) & 7;
+
     // Sclk cycles per timer tick
     if (tmp >= 6) tmp++;
     if (tmp) tmp += 5;
     else tmp = 1;
     timer_tick_shift[i] = tmp;
     elprintf(EL_32XP, "WDT cycles[%d] = %d", i, 1 << tmp);
+
+    tmp = (1 << timer_tick_shift[i]) - Pico32x.wdt_cycle[i]; // current tick
+    if (tmp < 0) tmp = 0; // in case of invalid tick cycle data
+    tmp += (255 - PREG8(sh2->peri_regs, 0x81)) << timer_tick_shift[i];
+
+    if (PREG8(sh2->peri_regs, 0xe3) >> 4)
+      p32x_event_schedule_sh2(sh2, P32X_EVENT_MTIMER+i, DIVQ32(tmp,3));
   }
 }
 
-NOINLINE void p32x_timer_do(SH2 *sh2, unsigned int m68k_slice)
+void p32x_timer_do(SH2 *sh2, unsigned int now)
 {
-  unsigned int cycles = m68k_slice * 3;
+  int i = sh2->is_slave;
   void *pregs = sh2->peri_regs;
-  int cnt; int i = sh2->is_slave;
 
   // WDT timer
-  timer_cycles(sh2) += cycles;
-  cnt = (timer_cycles(sh2) >> timer_tick_shift[i]);
-  if (cnt) {
-    timer_cycles(sh2) -= cnt << timer_tick_shift[i];
+  if (PREG8(sh2->peri_regs, 0x80) & 0x20) { // TME
+    unsigned int cycles = (now - timer_last_cycle[i]) * 3;
+    int cnt;
 
-    cnt += PREG8(pregs, 0x81);
-    if (cnt >= 0x100) {
-      int level = PREG8(pregs, 0xe3) >> 4;
-      int vector = PREG8(pregs, 0xe4) & 0x7f;
-      PREG8(pregs, 0x80) |= 0x80; // WOVF
-      elprintf(EL_32XP, "%csh2 WDT irq (%d, %d)",
-        i ? 's' : 'm', level, vector);
+    cycles += Pico32x.wdt_cycle[i];
+    cnt = (cycles >> timer_tick_shift[i]);
+    cycles -= cnt << timer_tick_shift[i];
+
+    PREG8(pregs, 0x81) += cnt;
+    Pico32x.wdt_cycle[i] = cycles;
+    timer_last_cycle[i] = now;
+  }
+}
+
+void p32x_timer_irq(SH2 *sh2, unsigned int now)
+{
+  void *pregs = sh2->peri_regs;
+
+  if (PREG8(sh2->peri_regs, 0x80) & 0x20) { // TME
+    int i = sh2->is_slave;
+    int after = 256 << timer_tick_shift[i];
+    int level = PREG8(pregs, 0xe3) >> 4;
+    int vector = PREG8(pregs, 0xe4) & 0x7f;
+
+    PREG8(pregs, 0x80) |= 0x80; // WOVF
+    elprintf(EL_32XP, "%csh2 WDT irq (%d, %d)",
+      sh2->is_slave ? 's' : 'm', level, vector);
+
+    if (level) {
       sh2_internal_irq(sh2, level, vector);
-      cnt &= 0xff;
+      p32x_event_schedule_sh2(sh2, P32X_EVENT_MTIMER+i, DIVQ32(after,3));
     }
-    PREG8(pregs, 0x81) = cnt;
+
+    // reset counting to avoid rounding errors
+    PREG8(pregs, 0x81) = 0x00;
+    Pico32x.wdt_cycle[i] = 0;
+    timer_last_cycle[i] = now;
   }
 }
 
@@ -249,6 +275,13 @@ void sh2_peripheral_reset(SH2 *sh2)
   PREG8(sh2->peri_regs, 0x017) = 0xe0; // TOCR
 }
 
+void sh2_peripheral_state_loaded(void)
+{
+  timer_last_cycle[0] = timer_last_cycle[1] = Pico.t.m68c_aim;
+  p32x_timer_recalc(&msh2);
+  p32x_timer_recalc(&ssh2);
+}
+
 // ------------------------------------------------------------------
 // SH2 internal peripheral memhandlers
 // we keep them in little endian format
@@ -260,6 +293,8 @@ u32 REGPARM(2) sh2_peripheral_read8(u32 a, SH2 *sh2)
 
   DRC_SAVE_SR(sh2);
   a &= 0x1ff;
+  if (a == 0x81)
+    p32x_timer_do(sh2, sh2_cycles_done_m68k(sh2));
   d = PREG8(r, a);
 
   elprintf_sh2(sh2, EL_32XP, "peri r8  [%08x]       %02x @%06x",
@@ -279,6 +314,8 @@ u32 REGPARM(2) sh2_peripheral_read16(u32 a, SH2 *sh2)
 
   DRC_SAVE_SR(sh2);
   a &= 0x1fe;
+  if (a == 0x80)
+    p32x_timer_do(sh2, sh2_cycles_done_m68k(sh2));
   d = r[MEM_BE2(a / 2)];
 
   elprintf_sh2(sh2, EL_32XP, "peri r16 [%08x]     %04x @%06x",
@@ -297,6 +334,8 @@ u32 REGPARM(2) sh2_peripheral_read32(u32 a, SH2 *sh2)
 
   DRC_SAVE_SR(sh2);
   a &= 0x1fc;
+  if (a == 0x80)
+    p32x_timer_do(sh2, sh2_cycles_done_m68k(sh2));
   d = sh2->peri_regs[a / 4];
 
   elprintf_sh2(sh2, EL_32XP, "peri r32 [%08x] %08x @%06x",
@@ -335,7 +374,8 @@ static void sci_trigger(SH2 *sh2, u8 *r)
     int vector = PREG8(oregs, 0x64) & 0x7f;
     elprintf_sh2(sh2, EL_32XP, "SCI tx irq (%d, %d)",
       level, vector);
-    sh2_internal_irq(sh2, level, vector);
+    if (level)
+      sh2_internal_irq(sh2, level, vector);
   }
   // TODO: TEIE
   if (PREG8(oregs, 2) & 0x40) { // RIE - rx irq enabled
@@ -343,7 +383,8 @@ static void sci_trigger(SH2 *sh2, u8 *r)
     int vector = PREG8(oregs, 0x63) & 0x7f;
     elprintf_sh2(sh2->other_sh2, EL_32XP, "SCI rx irq (%d, %d)",
       level, vector);
-    sh2_internal_irq(sh2->other_sh2, level, vector);
+    if (level)
+      sh2_internal_irq(sh2->other_sh2, level, vector);
   }
 }
 
@@ -384,6 +425,10 @@ void REGPARM(3) sh2_peripheral_write8(u32 a, u32 d, SH2 *sh2)
     d |= 0xe0;
     PREG8(r, a) = d;
     break;
+  case 0x0e3:
+    p32x_timer_do(sh2, sh2_cycles_done_m68k(sh2));
+    p32x_timer_recalc(sh2);
+    break;
   default:
     if ((a & 0x1c0) == 0x140)
       p32x_sh2_poll_event(a, sh2, SH2_STATE_CPOLL, SekCyclesDone());
@@ -405,13 +450,20 @@ void REGPARM(3) sh2_peripheral_write16(u32 a, u32 d, SH2 *sh2)
   if (a == 0x80) {
     if ((d & 0xff00) == 0xa500) { // WTCSR
       PREG8(r, 0x80) = d;
-      p32x_timers_recalc();
-      timer_cycles(sh2) = 0;
     }
-    if ((d & 0xff00) == 0x5a00) // WTCNT
+    if ((d & 0xff00) == 0x5a00) { // WTCNT
       PREG8(r, 0x81) = d;
+    }
+    // reset to avoid rounding problems
+    Pico32x.wdt_cycle[sh2->is_slave] = 0;
+    timer_last_cycle[sh2->is_slave] = sh2_cycles_done_m68k(sh2);
+    p32x_timer_recalc(sh2);
   } else {
     r[MEM_BE2(a / 2)] = d;
+    if (a == 0x0e2) {
+      p32x_timer_do(sh2, sh2_cycles_done_m68k(sh2));
+      p32x_timer_recalc(sh2);
+    }
     if ((a & 0x1c0) == 0x140)
       p32x_sh2_poll_event(a, sh2, SH2_STATE_CPOLL, SekCyclesDone());
   }

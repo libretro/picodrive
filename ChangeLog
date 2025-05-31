@@ -1,3 +1,221 @@
+2.05 (2025-05-31)
+  + added lightgun support for SDL platforms, using the host mouse for Menacer, Justifier, and Light Phaser
+  * improved handling of OpenGL (may enable OpenGL video mode on devices with JZ4770 CPUs)
+  * improved SDL Joystick/Pad support (should now work with what devices are supported by SDL)
+  * improved support for Windows platform
+  * slightly improved SDL window resize handling
+  * slightly improved UI for keyboard settings
+  * fixed major VDP window rendering regression (games using a VDP window with color table != 0)
+  * fixed interlaced mode rendering in ARMv7 assembly
+  * fixed VDP sprite parsing for MD (fixes a test case in SpriteMaskingTestRom)
+  * fixed crash in VDP rendering (DMA pointer wraparound)
+  * fixed pads not initialized correctly after state load
+  * fixed 32X VINT timing
+  * improved 32X interrupt handling (needs work, still not fully as the SH7604 handles it)
+  * improved 32X WDT handling
+  * several 32X CPU snychronisation fixes
+
+2.04 (2025-04-01)
+  + added mouse support for SDL platforms, using the host mouse for Sega Mouse, Pico Pen
+  * improved scaling when resizing the window on SDL platforms (Linux, OSX, Windows)
+  + added preselect window sizes for integer scaling for SDL platforms
+  + added fullscreen mode for SDL platforms (well, sort of)
+  * attempted to improve pad detection for ps2
+  + noticeably improved save state accuracy (for retroarch run-ahead)
+  * made the DC filter reacting faster (closer to real MD according to notaz' measurements)
+  * fixed a crash when using MD VDP hscroll in conjunction with 2-cell mode
+  * fixed handling shadow/highlight in MD VDP layer A window (fixes Int. Super Star Soccer)
+  * added toggling the field bit in MD VDP status for interlace modes
+  + added some support for MD VDP non-linear color DAC (Knuckles Chaotix color test)
+  * fixed MD+ playing binary tracks as audio (fixes a bug in DOOM Fusion)
+  * improve MCD CPU sync (fixes Shadow of the Beast)
+  * fixed 32X handling of MD H32 mode (MD and 32X layer have 4 px offset)
+  * fixed GG region code reading (fixes Pop Breaker)
+  * fixed GG screen in 224 and 240 line mode (fixes Micro Machines)
+  * fixed GG/SMS display off after scanline start (fixes Madou I)
+
+2.03 (2025-02-15)
+  + added support for Pico keyboard (thanks @qufb for supplying this, literally years ago. Mea maxima culpa!)
+  + added support for SC-3000 keyboard and cassette drive
+  + added configurable mapping for physical keyboard
+  + added virtual keyboard for devices not having a physical keyboard
+  * improved window handling
+  * fix bug in libretro frontend for Pico pad handling (thanks @theLilaQ)
+  * fixes for PS2 vsync handling (thanks @fjtrujy; this is still not being perfect)
+  * fix a crash for MD when rendering in 2-cell VSRAM mode (thanks @notaz for pointing this out)
+  * more fixes for MD+ (for running Doom 32x Resurrection and Fusion)
+  * fix for 32X screen rendering (for running Sonic Robo Blast 2)
+  * fix handling of the 32X cycles UI option
+  * other minor bug fixes and optimizations
+
+2.02 (2024-12-29)
+  * fixes for MSU and MD+ (for running Doom 32x Resurrection and Fusion)
+  + minimal SMS 3D glasses support
+  * updates to libretro common (apparently fixes some obscure bugs)
+  * some CD fixes
+  * fix a cartridge mapping bug for ARM32 (cyclone)
+  * fixes for 32X watchdog timer handling (for running Sonic Robo Blast 2, thanks @notaz)
+  * other minor bug fixes
+
+2.01 (2024-10-17)
+  + added windows build
+  + added integer scaling for SDL window mode
+  + added support for mode 1
+  + added support for MD+/32X+
+  * improved CD emulation compatibility
+  + added support for J-cart games (with 2 additional on-cart controller ports)
+  + added some more mappings for Mega Drive games
+  + added PS2 support for multitap and up to 4 controllers
+  * fixes for PS2 and PSP (audio, menu)
+  * other bug fixes
+
+2.00 (2024-07-19)
+  * improved system detection by extension
+  * improved save/load (Z80, VDP state)
+  * improved some auto mappings for SMS
+  + added stereo for YM2612 DAC output
+  + updated libchdr for zstd support
+  * fixes for pandora
+  * changed miyoo build to ipk
+  * switched miyoo menu key to RESET
+  + added some more MD cartridges
+  * added more keys for some opendingux devices
+  * several fixes for SH2 DRC
+  * several VDP rendering fixes
+  * a lot of other bug fixes (32X reset, Z80 timing, etc.)
+
+2.00-beta3 (2024-04-28)
+  * bug fixes (VDP reset, Z80 reset)
+  * improvements for Sega/Mega CD
+
+2.00-beta2 (2024-03-26)
+  + substantial overhaul of Sega Pico UI
+    supports png images for pad overlays and storyware, new hotkeys, new option (see below)
+  * improved z80 and 68k timing for md and alike
+  * improved timing for 68k access to z80 bus
+  * improved 68k open bus read
+  + implemented "busy" status bit in ym2612
+  * fixes for big endian CPUs for state save/load
+
+2.00-beta1 (2024-03-03)
+  + added ps2 standalone target (thanks to fjtrujy for the fundamentals)
+  * improved psp support
+  * fixed menu RGB/BGR handling
+  * fixed several Z80 related timing inaccuracies
+  * slightly increased volume for CD audio
+  * other bug fixes
+
+2.00-alpha3 (2024-01-13)
+  * improved pandora layer handling
+  + added handling of "fantom bitmap" (DMA to background color)
+  + added SMS option to select TMS bitmap for legacy gfx modes
+  + added stereo sound support for GG
+  + overall revision of Pico support (correct sound, better handling of pen, better save/load handling)
+
+2.00-alpha2 (2023-12-14)
+  * bug fixes and improvements for psp, miyoo, opendingux, pandora
+  + UI fixes and improvements
+  * other bugfixes
+
+2.00-alpha1 (2023-11-09)
+  + improved MD FM sound (DAC ladder effect/clipping, filtering, native rate)
+  + added support for 32X using MD H32 mode
+  + added support for MSU-MD (cartridge+audio CD for MD and 32X)
+  + added basic MD multiplayer support (team player, 4-way play)
+  + added mapping for some additional Mega Drive games
+  + added support for both Overdrive demos
+  * improved save/load handling (SVP, MD mapping, MCD/32X cycle counter)
+  + added more mappers for SMS cartridges
+  + added some support for GG cartridges running in SMS mode
+  * improved SMS graphics if 1st column is blanked
+  + added missing TMS9918 modes
+  + added SG-1000/SC-3000 support (no kbd yet, upcoming)
+  + added additional handhelds/host systems (miyoo, gkd, rg99, odbeta)
+  * improved handling of files by extension
+  + revised menu (more consistent options handling, option profiles)
+  + added dynarec support for PS3 using libretro
+  * add CI to repo (including artifact uploading for the curious)
+  * improved psp support
+  + revived pandora support
+  * a plethora of bug fixes and minor improvements (also most probably new bugs ;-))
+
+1.99 (2021-11-14)
+  + improved Master System support
+  + added SRAM save support for SMS cartridges
+  + added a lot of mappers for SMS cartridges
+  + added Game Gear support
+  + added Master System TMS9918 modes 0 and 2
+  + added upscaling for improved aspect ratios
+  * improved Sega/Mega CD support
+  + added mapping for some additional Mega Drive games
+  + improvements for libretro support (new menu structure courtesy of jdgleaver)
+  * a load of bug fixes and minor improvements (also most probably new bugs ;-))
+
+1.98 (2021-04-02)
+  + CHD support for CD images
+  + mp3 playback support via minimp3
+  + big endian host platform support
+  + sound low pass filtering for more realistic sound (original HW has analog low pass filter)
+  + menu revision
+  * improvements for 8bit fast rendererer (mainly better PAL support)
+  + basic support for legacy dingux (somewhat limited) and retrofw devices
+  + experimental support for PSP (incomplete)
+  * a load of bug fixes and minor improvements (also most probably new bugs ;-))
+
+1.97 (2020-11-23)
+  + powerpc support for DRC
+  + 2x mode in SDL video overlay mode for better color resolution
+  + FM support for Master System (YM2413) (thanks to @hiroshica for supplying)
+  * bug fixes
+
+1.96 (2020-05-16)
+  + added YM2612 SSG-EG emulation
+  * optimisations for SH2 DRC
+  + added a DC filter to 32X PWM sound to reduce clipping
+  * improved VDP emulation (some Overdrive 2 support)
+  + completely rewrote VDP FIFO handling for improved timing accuracy
+  + revived SVP DRC for ARM
+
+1.95 (2019-11-27)
+  + added RISC-V code emitter for SH2 DRC
+  * SH2 DRC optimisations
+
+1.94 (2019-10-12)
+  + revive Helix Mp3 decoder support for ARM (Helix sources not supplied due to licensing)
+  * update GPH device support to use newer GCC 4.7
+  * ARM specific optimisations (speedup for emulated memory access, 32X draw code, DRC disassemblers)
+  * a lot of SH2 DRC and 32X emulation fixes to improve game compatibility
+  * improved DRC code generation (generated code now noticeably faster)
+  * improved SH2 DRC memory access functions (added 32 bit versions, sign extension)
+  * improved SH2 DRC register caching
+  + added branch caching to SH2 DRC
+  * optimisations to DRC ARM backend (code reordering, literal pool)
+  + added polling/idling loop detection and basic loop optimisation to SH2 DRC
+  + added call/return cache for SH2 DRC
+  + added cache for communication areas between 32X CPUs
+  + added T bit caching to ARM SH2 DRC backend (kept in host CPU flags as long as possible if possible)
+  + added x86_64. MIPS and aarch64 backends to SH2 DRC
+  * 32X DMA emulation optimisation
+  + revised SH2 DRC branch handling and host code block linking
+  + added 32X PWM interrupt optimisation (configurable since it may not work with all games)
+  * improved auto frameskipping
+
+1.93 (2019-01-25)
+  + implemented SSF2 mapper for 32X
+  + revived x86 DRC
+  + added 68K overclocking
+  + improved FAME/C 68K emulation speed
+  + support for SMS cheats
+  * 32X DRC bug fixes and improvements
+  * other bug fixes
+
+1.92 (2017-10-04)
+  + some support for obscure VDP features (128K, debug register)
+  + import SPI EEPROM from GPGX
+  * fixes for FAME/C 68k emulation
+  + added Raspberry Pi 1,2 support
+  + other bug fixes
+
 1.91 (2013-10-12)
   + Added OpenDingux support (Paul Cercueil).
   * Save directory changed to ~/.picodrive/ for generic platform build

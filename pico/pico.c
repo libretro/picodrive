@@ -249,6 +249,8 @@ void PicoLoopPrepare(void)
     PicoMCDPrepare();
   if (PicoIn.AHW & PAHW_32X)
     Pico32xPrepare();
+  if (PicoIn.AHW & PAHW_SMS)
+    PicoPrepareMS();
 }
 
 #include "pico_cmn.c"

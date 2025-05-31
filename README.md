@@ -35,10 +35,19 @@ the pages can be found in `platform/base_readme.txt`.
 
 On all platforms with physical mouse support, PicoDrive can use real mouse
 input to emulate a Sega Mouse or the Pico Pen. A physical mouse can be operated
-in either a captured or uncaptured state, selectable via the `Capture mouse` hotkey.
-Mouse mode can be activated by setting `mouse` as the input device for one
-of the pads. It depends on the game as to which pad should be used for mouse
+in either a captured or uncaptured state, selectable via the `Capture mouse`
+hotkey. Mouse mode can be activated by setting `mouse` as the input device for
+one of the pads. It depends on the game as to which pad should be used for mouse
 input. More information is located in `platform/base_readme.txt`.
+
+### Sega Menacer and Light Phaser and Konami Justifier
+
+PicoDrive can use a physical mouse for light gun emulation on all platforms
+with mouse support. This can be activated by selecting an input device of
+either `light gun` or `justifier`. The `light gun` setting represents the Sega
+Menacer for the Mega Drive or the Light Phaser for the Master System; it may
+be attached to either pad input port. The `justifier` is only available on
+input 2. Supplementary information is provided in `platform/base_readme.txt`.
 
 ### Sega Pico and SC-3000 Keyboards
 

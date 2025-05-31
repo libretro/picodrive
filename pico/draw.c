@@ -600,7 +600,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
   struct PicoVideo *pvid = &est->Pico->video;
   int tilex,ty,nametab,code,oldcode=-1,blank=-1; // The tile we know is blank
   int yshift,ymask;
-  u32 pack=0;
+  u32 pack=0, pal=0;
   u32 *hc=NULL, lflags=0; // referenced in DrawTile
 
   yshift = 4, ymask = 0x7;
@@ -634,7 +634,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
     sh = (sh ? 0x80 : 0x00); // sh and low prio -> shadow
     for (; tilex < tend; tilex++)
     {
-      int dx, pal=0;
+      int dx;
 
       code = PicoMem.vram[nametab + tilex];
       if ((code>>15) != prio) {
@@ -652,7 +652,7 @@ static void DrawWindow(int tstart, int tend, int prio, int sh,
     sh = lflags; // sh and high prio -> no shadow (lflags to suppress warning)
     for (; tilex < tend; tilex++)
     {
-      int dx, pal=0;
+      int dx;
 
       code = PicoMem.vram[nametab + tilex];
       if((code>>15) != prio) {
@@ -1245,7 +1245,6 @@ static NOINLINE void ParseSprites(int max_lines, int limit)
       {
         unsigned char *p = &HighLnSpr[y][0];
         int cnt = p[0] & 0x7f;
-        if (p[1] & SPRL_MASKED) continue;               // masked?
 
         if (p[3] >= max_line_sprites) continue;         // sprite limit?
         p[3] ++;
@@ -1257,6 +1256,8 @@ static NOINLINE void ParseSprites(int max_lines, int limit)
           w = max_line_sprites*2 - p[2];
         }
         p[2] += w;
+
+        if (p[1] & SPRL_MASKED) continue;               // masked?
 
         if (sx == -0x78) {
           if (p[1] & (SPRL_HAVE_X|SPRL_TILE_OVFL))

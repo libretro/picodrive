@@ -101,6 +101,7 @@ through the D-pad if the screen has been switched to either pages or pad, or by
 mouse if physical mouse support is activated.
 
 
+#ifdef GENERIC
 How to use the mouse
 --------------------
 
@@ -120,11 +121,44 @@ The physical mouse buttons are mapped as follows:
 
 | Physical Mouse | Sega Mouse |   Pico Pen  |
 |:--------------:|:----------:|:-----------:|
-|   Left Button  |      B     |  Pen Button |
+|  Left Button   |      B     |  Pen Button |
 |  Middle Button |    START   |  Red Button |
 |  Right Button  |      C     | Pen Up/Down |
 
 
+How to use a light gun
+----------------------
+
+PicoDrive additionally supports light guns on systems where mouse support is
+available. It can be activated by selecting `light gun` or `justifier` as the
+input device. General mouse operation is covered in the "How to use the mouse"
+section.
+
+The `light gun` setting auto configures an input device based on the currently
+emulated platform: a Sega Menacer for the Mega Drive (and derivatives) and a
+Light Phaser for the Master System. The `justifier` setting corresponds to a
+Konami Justifier. This is only available on Mega Drive based systems, and can
+only be configured as input device 2.
+
+Selecting any light gun as input enables the light gun configuration submenu.
+This allows for displaying a cursor to indicate the current aiming position,
+as well as the adjustment of an aiming offset to correct for any in-game
+displacements.
+
+The physical mouse buttons are mapped as follows:
+
+| Physical Mouse | Sega Menacer/    |
+|                | Light Phaser/    |
+|                | Konami Justifier |
+|:--------------:|:----------------:|
+|  Left Button   |         A        |
+|  Middle Button |         B        |
+|  Right Button  |       START      |
+
+The pad button mappings may also be used to access other buttons.
+
+
+#endif
 How to use keyboard input
 -------------------------
 
