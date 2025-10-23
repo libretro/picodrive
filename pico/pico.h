@@ -24,6 +24,10 @@ extern void lprintf(const char *fmt, ...);
 extern int  mp3_get_bitrate(void *f, int size);
 extern void mp3_start_play(void *f, int pos);
 extern void mp3_update(s32 *buffer, int length, int stereo);
+extern int ogg_get_length(void *f_);
+extern void ogg_start_play(void *f_, int sample_offset);
+extern void ogg_stop_play(void);
+extern void ogg_update(s32 *buffer, int length, int stereo);
 
 // this function should write-back d-cache and invalidate i-cache
 // on a mem region [start_addr, end_addr)
@@ -75,7 +79,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define POPT_EN_PWM         (1<<21)
 #define POPT_PWM_IRQ_OPT    (1<<22)
 #define POPT_DIS_FM_SSGEG   (1<<23)
-#define POPT_EN_FM_DAC      (1<<24) //x00 0000
+#define POPT_FM_YM2612      (1<<24) //x00 0000
 #define POPT_EN_FM_FILTER   (1<<25)
 #define POPT_EN_KBD         (1<<26)
 
@@ -89,6 +93,7 @@ extern void *p32x_bios_g, *p32x_bios_m, *p32x_bios_s;
 #define PAHW_SG     (1<<6)
 #define PAHW_SC     (1<<7)
 #define PAHW_8BIT   (PAHW_SMS|PAHW_GG|PAHW_SG|PAHW_SC)
+#define PAHW_VGM    (1<<8)
 
 #define PHWS_AUTO   0
 #define PHWS_GG     1
@@ -315,6 +320,7 @@ enum media_type_e {
   PM_MARK3,
   PM_PICO,
   PM_CD,
+  PM_VGM,
 };
 
 enum cd_track_type
@@ -329,6 +335,7 @@ enum cd_track_type
   CT_CHD = CT_AUDIO | 2,
   CT_MP3 = CT_AUDIO | 3,
   CT_WAV = CT_AUDIO | 4,
+  CT_OGG = CT_AUDIO | 5,
 };
 
 typedef struct

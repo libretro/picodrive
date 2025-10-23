@@ -496,15 +496,12 @@ echo >> $config_mak
 echo "ARCH = $ARCH" >> $config_mak
 echo "PLATFORM = $platform" >> $config_mak
 echo "SOUND_DRIVERS = $sound_drivers" >> $config_mak
-if [ "$have_gles" = "yes" ]; then
-  echo "HAVE_GLES = 1" >> $config_mak
-fi
-if [ "$have_libavcodec" = "yes" ]; then
-  echo "HAVE_LIBAVCODEC = 1" >> $config_mak
-fi
-if [ "$need_zlib" = "yes" ]; then
-  echo "PLATFORM_ZLIB = 1" >> $config_mak
-fi
+[ "$have_gles" = "yes" ] && echo "HAVE_GLES = 1" >> $config_mak
+[ "$have_libavcodec" = "yes" ] && echo "HAVE_LIBAVCODEC = 1" >> $config_mak
+[ "$need_zlib" = "yes" ] && echo "PLATFORM_ZLIB = 1" >> $config_mak
+# we always use the internal tremor decoder for standalone
+echo "PLATFORM_TREMOR = 1" >> $config_mak
+
 if [ "$ARCH" = "arm" -a "$have_armv6" != "yes" -a "$have_armv7" != "yes" ]; then
   # pass info to cyclone not to use newer arm arch instructions
   echo "HAVE_ARMv6 = 0" >> $config_mak

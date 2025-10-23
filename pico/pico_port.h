@@ -41,9 +41,9 @@
 // There's no standard way to determine endianess at compile time. Try using
 // some well known non-standard macros for detection.
 #if defined __BYTE_ORDER__
-#define	CPU_IS_LE	__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+#define	CPU_IS_LE	(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
 #elif defined __BYTE_ORDER
-#define	CPU_IS_LE	__BYTE_ORDER == __LITTLE_ENDIAN
+#define	CPU_IS_LE	(__BYTE_ORDER == __LITTLE_ENDIAN)
 #elif defined __BIG_ENDIAN__ || defined _M_PPC // Windows on PPC was big endian
 #define	CPU_IS_LE	0
 #elif defined __LITTLE_ENDIAN__ || defined _WIN32 // all other Windows is LE

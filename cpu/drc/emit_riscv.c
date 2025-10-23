@@ -296,8 +296,8 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 	EMIT_PTR(ptr, R5_B(val_ & 0x00001fff)); \
 }
 
-#define EMITH_JMP_START(cond) { \
-	int cond_r, cond_s, cond_m = emith_cond_check(cond, &cond_r, &cond_s); \
+#define EMITH_JMP_START(cond) \
+{	int cond_r, cond_s, cond_m = emith_cond_check(cond, &cond_r, &cond_s); \
 	u8 *cond_ptr; \
 	JMP_POS(cond_ptr)
 
@@ -305,8 +305,8 @@ enum { F2_ALT=0x20, F2_MULDIV=0x01 };
 	JMP_EMIT(cond, cond_ptr); \
 }
 
-#define EMITH_JMP3_START(cond) { \
-	int cond_r, cond_s, cond_m = emith_cond_check(cond, &cond_r, &cond_s); \
+#define EMITH_JMP3_START(cond) \
+{	int cond_r, cond_s, cond_m = emith_cond_check(cond, &cond_r, &cond_s); \
 	u8 *cond_ptr, *else_ptr; \
 	JMP_POS(cond_ptr)
 
@@ -401,13 +401,9 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 // data processing, register
 #define emith_move_r_r_ptr(d, s) \
 	EMIT(R5_MOV_REG(d, s))
-#define emith_move_r_r_ptr_c(cond, d, s) \
-	emith_move_r_r_ptr(d, s)
 
 #define emith_move_r_r(d, s) \
 	emith_move_r_r_ptr(d, s)
-#define emith_move_r_r_c(cond, d, s) \
-	emith_move_r_r(d, s)
 
 #define emith_mvn_r_r(d, s) \
 	EMIT(R5_MVN_REG(d, s))
@@ -599,8 +595,6 @@ static void emith_set_compare_flags(int rs, int rt, s32 imm)
 
 #define emith_and_r_r(d, s) \
 	emith_and_r_r_r(d, d, s)
-#define emith_and_r_r_c(cond, d, s) \
-	emith_and_r_r(d, s)
 
 #define emith_or_r_r(d, s) \
 	emith_or_r_r_r(d, d, s)
@@ -743,8 +737,6 @@ static void emith_move_ptr_imm(int r, uintptr_t imm)
 
 #define emith_move_r_imm(r, imm) \
 	emith_move_imm(r, (u32)(imm))
-#define emith_move_r_imm_c(cond, r, imm) \
-	emith_move_r_imm(r, imm)
 
 #define emith_move_r_imm_s8_patchable(r, imm) \
 	EMIT(R5_ADD_IMM(r, Z0, (s8)(imm)))
@@ -768,16 +760,12 @@ static void emith_op_imm(int f1, int rd, int rs, u32 imm)
 // arithmetic, immediate - can only be ADDI, since SUBI doesn't exist
 #define emith_add_r_imm(r, imm) \
 	emith_add_r_r_imm(r, r, imm)
-#define emith_add_r_imm_c(cond, r, imm) \
-	emith_add_r_imm(r, imm)
 
 #define emith_addf_r_imm(r, imm) \
 	emith_addf_r_r_imm(r, imm)
 
 #define emith_sub_r_imm(r, imm) \
 	emith_sub_r_r_imm(r, r, imm)
-#define emith_sub_r_imm_c(cond, r, imm) \
-	emith_sub_r_imm(r, imm)
 
 #define emith_subf_r_imm(r, imm) \
 	emith_subf_r_r_imm(r, r, imm)
@@ -824,8 +812,6 @@ static void emith_op_imm(int f1, int rd, int rs, u32 imm)
 // NB: no SUBI in R5, since ADDI takes a signed imm
 #define emith_sub_r_r_imm(d, s, imm) \
 	emith_add_r_r_imm(d, s, -(imm))
-#define emith_sub_r_r_imm_c(cond, d, s, imm) \
-	emith_sub_r_r_imm(d, s, imm)
 
 #define emith_subf_r_r_imm(d, s, imm) do { \
 	emith_sub_r_r_imm(FNZ, s, imm); \
@@ -838,31 +824,21 @@ static void emith_op_imm(int f1, int rd, int rs, u32 imm)
 
 #define emith_or_r_imm(r, imm) \
 	emith_op_imm(F1_OR, r, r, imm)
-#define emith_or_r_imm_c(cond, r, imm) \
-	emith_or_r_imm(r, imm)
 
 #define emith_eor_r_imm_ptr(r, imm) \
 	emith_op_imm(F1_XOR, r, r, imm)
-#define emith_eor_r_imm_ptr_c(cond, r, imm) \
-	emith_eor_r_imm_ptr(r, imm)
 
 #define emith_eor_r_imm(r, imm) \
 	emith_eor_r_imm_ptr(r, imm)
-#define emith_eor_r_imm_c(cond, r, imm) \
-	emith_eor_r_imm(r, imm)
 
 /* NB: BIC #imm not available in R5; use AND #~imm instead */
 #define emith_bic_r_imm(r, imm) \
 	emith_op_imm(F1_AND, r, r, ~(imm))
-#define emith_bic_r_imm_c(cond, r, imm) \
-	emith_bic_r_imm(r, imm)
 
 #define emith_tst_r_imm(r, imm) do { \
 	emith_op_imm(F1_AND, FNZ, r, imm); \
 	emith_cmp_rs = emith_cmp_rt = -1; \
 } while (0)
-#define emith_tst_r_imm_c(cond, r, imm) \
-	emith_tst_r_imm(r, imm)
 
 #define emith_and_r_r_imm(d, s, imm) \
 	emith_op_imm(F1_AND, d, s, imm)
@@ -888,8 +864,6 @@ static void emith_op_imm(int f1, int rd, int rs, u32 imm)
 	EMIT(R5_LSRW_IMM(d, s, cnt)); \
 	EMIT(R5_OR_REG(d, d, AT)); \
 } while (0)
-#define emith_ror_c(cond, d, s, cnt) \
-	emith_ror(d, s, cnt)
 
 #define emith_rol(d, s, cnt) do { \
 	EMIT(R5_LSRW_IMM(AT, s, 32-(cnt))); \
@@ -997,8 +971,6 @@ static void emith_op_imm(int f1, int rd, int rs, u32 imm)
 		emith_lsr(d, d, count); \
 	} \
 } while (0)
-#define emith_clear_msb_c(cond, d, s, count) \
-	emith_clear_msb(d, s, count)
 
 #define emith_sext(d, s, count) /* bits to keep */ do { \
 	emith_lsl(d, s, 32-(count)); \
@@ -1025,8 +997,6 @@ static void emith_op_imm(int f1, int rd, int rs, u32 imm)
 	emith_add_r_r(dhi, AT); \
 	rcache_free_tmp(t_); \
 } while (0)
-#define emith_mula_s64_c(cond, dlo, dhi, s1, s2) \
-	emith_mula_s64(dlo, dhi, s1, s2)
 
 // load/store. offs has 12 bits signed, hence larger offs may use a temp
 static void emith_ld_offs(int sz, int rd, int rs, int o12)
@@ -1042,13 +1012,9 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 
 #define emith_read_r_r_offs_ptr(r, rs, offs) \
 	emith_ld_offs(F1_P, r, rs, offs)
-#define emith_read_r_r_offs_ptr_c(cond, r, rs, offs) \
-	emith_read_r_r_offs_ptr(r, rs, offs)
 
 #define emith_read_r_r_offs(r, rs, offs) \
 	emith_ld_offs(F1_W, r, rs, offs)
-#define emith_read_r_r_offs_c(cond, r, rs, offs) \
-	emith_read_r_r_offs(r, rs, offs)
  
 #define emith_read_r_r_r_ptr(r, rs, rm) do { \
 	emith_add_r_r_r_ptr(AT, rs, rm); \
@@ -1058,56 +1024,38 @@ static void emith_ld_offs(int sz, int rd, int rs, int o12)
 	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_W, r, AT, 0); \
 } while (0)
-#define emith_read_r_r_r_c(cond, r, rs, rm) \
-	emith_read_r_r_r(r, rs, rm)
 
 #define emith_read8_r_r_offs(r, rs, offs) \
 	emith_ld_offs(F1_BU, r, rs, offs)
-#define emith_read8_r_r_offs_c(cond, r, rs, offs) \
-	emith_read8_r_r_offs(r, rs, offs)
 
 #define emith_read8_r_r_r(r, rs, rm) do { \
 	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_BU, r, AT, 0); \
 } while (0)
-#define emith_read8_r_r_r_c(cond, r, rs, rm) \
-	emith_read8_r_r_r(r, rs, rm)
 
 #define emith_read16_r_r_offs(r, rs, offs) \
 	emith_ld_offs(F1_HU, r, rs, offs)
-#define emith_read16_r_r_offs_c(cond, r, rs, offs) \
-	emith_read16_r_r_offs(r, rs, offs)
 
 #define emith_read16_r_r_r(r, rs, rm) do { \
 	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_HU, r, AT, 0); \
 } while (0)
-#define emith_read16_r_r_r_c(cond, r, rs, rm) \
-	emith_read16_r_r_r(r, rs, rm)
 
 #define emith_read8s_r_r_offs(r, rs, offs) \
 	emith_ld_offs(F1_B, r, rs, offs)
-#define emith_read8s_r_r_offs_c(cond, r, rs, offs) \
-	emith_read8s_r_r_offs(r, rs, offs)
 
 #define emith_read8s_r_r_r(r, rs, rm) do { \
 	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_B, r, AT, 0); \
 } while (0)
-#define emith_read8s_r_r_r_c(cond, r, rs, rm) \
-	emith_read8s_r_r_r(r, rs, rm)
 
 #define emith_read16s_r_r_offs(r, rs, offs) \
 	emith_ld_offs(F1_H, r, rs, offs)
-#define emith_read16s_r_r_offs_c(cond, r, rs, offs) \
-	emith_read16s_r_r_offs(r, rs, offs)
 
 #define emith_read16s_r_r_r(r, rs, rm) do { \
 	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_ld_offs(F1_H, r, AT, 0); \
 } while (0)
-#define emith_read16s_r_r_r_c(cond, r, rs, rm) \
-	emith_read16s_r_r_r(r, rs, rm)
 
 static void emith_st_offs(int sz, int rt, int rs, int o12)
 {
@@ -1122,35 +1070,25 @@ static void emith_st_offs(int sz, int rt, int rs, int o12)
 
 #define emith_write_r_r_offs_ptr(r, rs, offs) \
 	emith_st_offs(F1_P, r, rs, offs)
-#define emith_write_r_r_offs_ptr_c(cond, r, rs, offs) \
-	emith_write_r_r_offs_ptr(r, rs, offs)
 
 #define emith_write_r_r_r_ptr(r, rs, rm) do { \
 	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_st_offs(F1_P, r, AT, 0); \
 } while (0)
-#define emith_write_r_r_r_ptr_c(cond, r, rs, rm) \
-	emith_write_r_r_r_ptr(r, rs, rm)
 
 #define emith_write_r_r_offs(r, rs, offs) \
 	emith_st_offs(F1_W, r, rs, offs)
-#define emith_write_r_r_offs_c(cond, r, rs, offs) \
-	emith_write_r_r_offs(r, rs, offs)
 
 #define emith_write_r_r_r(r, rs, rm) do { \
 	emith_add_r_r_r_ptr(AT, rs, rm); \
 	emith_st_offs(F1_W, r, AT, 0); \
 } while (0)
-#define emith_write_r_r_r_c(cond, r, rs, rm) \
-	emith_write_r_r_r(r, rs, rm)
 
 #define emith_ctx_read_ptr(r, offs) \
 	emith_read_r_r_offs_ptr(r, CONTEXT_REG, offs)
 
 #define emith_ctx_read(r, offs) \
 	emith_read_r_r_offs(r, CONTEXT_REG, offs)
-#define emith_ctx_read_c(cond, r, offs) \
-	emith_ctx_read(r, offs)
 
 #define emith_ctx_write_ptr(r, offs) \
 	emith_write_r_r_offs_ptr(r, CONTEXT_REG, offs)
@@ -1373,15 +1311,11 @@ static int emith_cond_check(int cond, int *r, int *s)
 
 #define emith_jump_reg(r) \
 	EMIT(R5_JR(r, 0))
-#define emith_jump_reg_c(cond, r) \
-	emith_jump_reg(r)
 
 #define emith_jump_ctx(offs) do { \
 	emith_ctx_read_ptr(AT, offs); \
 	emith_jump_reg(AT); \
 } while (0)
-#define emith_jump_ctx_c(cond, offs) \
-	emith_jump_ctx(offs)
 
 #define emith_call(target) do { \
 	uintptr_t target_ = (uintptr_t)(target) - (uintptr_t)tcache_ptr; \
@@ -1401,8 +1335,6 @@ static int emith_cond_check(int cond, int *r, int *s)
 
 #define emith_abijump_reg(r) \
 	emith_jump_reg(r)
-#define emith_abijump_reg_c(cond, r) \
-	emith_abijump_reg(r)
 #define emith_abicall(target) \
 	emith_call(target)
 #define emith_abicall_cond(cond, target) \
@@ -1414,8 +1346,6 @@ static int emith_cond_check(int cond, int *r, int *s)
 
 #define emith_ret() \
 	EMIT(R5_JR(LR, 0))
-#define emith_ret_c(cond) \
-	emith_ret()
 
 #define emith_ret_to_ctx(offs) \
 	emith_ctx_write_ptr(LR, offs)
@@ -1502,12 +1432,12 @@ static int emith_cond_check(int cond, int *r, int *s)
 		t3 = rcache_get_reg(reg, RC_GR_RMW, NULL);	\
 		emith_cmp_r_r(t3, t2);				\
 		EMITH_SJMP_START(DCOND_HI);			\
-		emith_sub_r_r_imm_c(DCOND_LS, t2, t3, 1);	\
+		emith_sub_r_r_imm(t2, t3, 1);			\
 		EMITH_SJMP_END(DCOND_HI);			\
 		/* if (reg <= 1) turns = 0 */			\
 		emith_cmp_r_imm(t3, 1);				\
 		EMITH_SJMP_START(DCOND_HI);			\
-		emith_move_r_imm_c(DCOND_LS, t2, 0);		\
+		emith_move_r_imm(t2, 0);			\
 		EMITH_SJMP_END(DCOND_HI);			\
 		/* reg -= turns */				\
 		emith_sub_r_r(t3, t2);				\
@@ -1565,11 +1495,11 @@ static int emith_cond_check(int cond, int *r, int *s)
 	emith_add_r_r_r_lsr(rn, rn, mh, 31); /* sum = (MACH>>31)+(MACH>>15) */ \
 	emith_teq_r_r(rn, Z0); /* (need only N and Z flags) */ \
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> -ovl */ \
-	emith_move_r_imm_c(DCOND_NE, ml, 0x00000000); \
-	emith_move_r_imm_c(DCOND_NE, mh, 0x00008000); \
+	emith_move_r_imm(ml, 0x00000000);         \
+	emith_move_r_imm(mh, 0x00008000);         \
 	EMITH_SJMP_START(DCOND_MI); /* sum > 0 -> +ovl */ \
-	emith_sub_r_imm_c(DCOND_PL, ml, 1); /* 0xffffffff */ \
-	emith_sub_r_imm_c(DCOND_PL, mh, 1); /* 0x00007fff */ \
+	emith_sub_r_imm(ml, 1); /* 0xffffffff */  \
+	emith_sub_r_imm(mh, 1); /* 0x00007fff */  \
 	EMITH_SJMP_END(DCOND_MI);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
@@ -1592,10 +1522,10 @@ static int emith_cond_check(int cond, int *r, int *s)
 	emith_teq_r_r(rn, Z0); /* (need only N and Z flags) */ \
 	EMITH_SJMP_START(DCOND_EQ); /* sum != 0 -> overflow */ \
 	/* XXX: LSB signalling only in SH1, or in SH2 too? */ \
-	emith_move_r_imm_c(DCOND_NE, mh, 0x00000001); /* LSB of MACH */ \
-	emith_move_r_imm_c(DCOND_NE, ml, 0x80000000); /* -ovrfl */ \
+	emith_move_r_imm(mh, 0x00000001); /* LSB of MACH */ \
+	emith_move_r_imm(ml, 0x80000000); /* -ovrfl */ \
 	EMITH_SJMP_START(DCOND_MI); /* sum > 0 -> +ovrfl */ \
-	emith_sub_r_imm_c(DCOND_PL, ml, 1); /* 0x7fffffff */ \
+	emith_sub_r_imm(ml, 1); /* 0x7fffffff */  \
 	EMITH_SJMP_END(DCOND_MI);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \
 	EMITH_SJMP_END(DCOND_EQ);                 \

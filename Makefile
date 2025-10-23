@@ -330,6 +330,21 @@ OBJS += platform/common/mp3_drmp3.o
 endif
 endif
 
+OBJS += platform/common/ogg.o
+ifeq "$(PLATFORM_TREMOR)" "1"
+TREMOR = platform/common/tremor
+TREMOR_OBJS += $(TREMOR)/block.o $(TREMOR)/codebook.o $(TREMOR)/floor0.o $(TREMOR)/floor1.o
+TREMOR_OBJS += $(TREMOR)/info.o $(TREMOR)/mapping0.o $(TREMOR)/mdct.o $(TREMOR)/registry.o
+TREMOR_OBJS += $(TREMOR)/res012.o $(TREMOR)/sharedbook.o $(TREMOR)/synthesis.o $(TREMOR)/window.o
+TREMOR_OBJS += $(TREMOR)/vorbisfile.o $(TREMOR)/framing.o $(TREMOR)/bitwise.o
+$(TREMOR_OBJS) platform/common/ogg.o: CFLAGS += -I$(TREMOR) -DUSE_TREMOR
+# API conflict between libvorbis and libvorbisidec (aka tremor) when compiling for retroarch
+$(TREMOR_OBJS): CFLAGS += $(call chkCCflag, -fvisibility=hidden)
+OBJS += $(TREMOR_OBJS)
+else
+LDLIBS += -lvorbisfile -lvorbis -logg
+endif
+
 ifeq (1,$(use_libchdr))
 CFLAGS += -DUSE_LIBCHDR
 
@@ -368,9 +383,10 @@ endif
 
 ifeq "$(PLATFORM_ZLIB)" "1"
 # zlib
-OBJS += zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
+ZLIB_OBJS = zlib/gzio.o zlib/inffast.o zlib/inflate.o zlib/inftrees.o zlib/trees.o \
 	zlib/deflate.o zlib/crc32.o zlib/adler32.o zlib/zutil.o zlib/compress.o zlib/uncompr.o
 CFLAGS += -Izlib
+OBJS += $(ZLIB_OBJS)
 endif
 # unzip
 OBJS += unzip/unzip.o

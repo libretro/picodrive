@@ -467,6 +467,7 @@ struct PicoTiming
   int timer_a_next_oflow, timer_a_step; // in z80 cycles
   int timer_b_next_oflow, timer_b_step;
   int ym2612_busy;
+  int ym2612_decay;
 
   int vcnt_wrap, vcnt_adj;
 };
@@ -710,6 +711,7 @@ extern carthw_state_chunk *carthw_chunks;
 
 // cart.c
 extern int rom_strcmp(void *rom, int size, int offset, const char *s1);
+extern void *PicoCartAlloc(int filesize, int is_sms);
 extern int PicoCartResize(int newsize);
 extern void Byteswap(void *dst, const void *src, int len);
 extern void (*PicoCartMemSetup)(void);
@@ -912,6 +914,7 @@ void SekInterruptClearS68k(int irq);
 extern short cdda_out_buffer[2*1152];
 
 void cdda_start_play(int lba_base, int lba_offset, int lb_len);
+void cdda_stop_play(void);
 
 #define YM2612_NATIVE_RATE() (((Pico.m.pal?OSC_PAL:OSC_NTSC)/7 + 3*24) / (6*24))
 
@@ -933,6 +936,8 @@ void ym2612_unpack_state_old(void);
 #define timers_cycle(ticks) \
   if (Pico.t.ym2612_busy > 0) \
     Pico.t.ym2612_busy -= ticks << 8; \
+  if (Pico.t.ym2612_decay > 0) \
+    Pico.t.ym2612_decay -= ticks << 8; \
   if (Pico.t.timer_a_next_oflow < TIMER_NO_OFLOW) \
     Pico.t.timer_a_next_oflow -= ticks << 8; \
   if (Pico.t.timer_b_next_oflow < TIMER_NO_OFLOW) \
@@ -940,7 +945,7 @@ void ym2612_unpack_state_old(void);
   ym2612_sync_timers(0, ym2612.OPN.ST.mode, ym2612.OPN.ST.mode);
 
 #define timers_reset() \
-  Pico.t.ym2612_busy = 0; \
+  Pico.t.ym2612_busy = Pico.t.ym2612_decay = ym2612.OPN.ST.status_latch = 0; \
   Pico.t.timer_a_next_oflow = Pico.t.timer_b_next_oflow = TIMER_NO_OFLOW; \
   Pico.t.timer_a_step = TIMER_A_TICK_ZCYCLES * 1024; \
   Pico.t.timer_b_step = TIMER_B_TICK_ZCYCLES * 256; \
@@ -1021,6 +1026,7 @@ PICO_INTERNAL void PsndDoDAC(int cycle_to);
 PICO_INTERNAL void PsndDoPSG(int cyc_to);
 PICO_INTERNAL void PsndDoYM2413(int cyc_to);
 PICO_INTERNAL void PsndDoFM(int cyc_to);
+PICO_INTERNAL void PsndDoSMSFM(int cyc_to);
 PICO_INTERNAL void PsndDoPCM(int cyc_to);
 PICO_INTERNAL void PsndClear(void);
 PICO_INTERNAL void PsndGetSamples(int y);
@@ -1057,7 +1063,6 @@ enum p32x_event {
   P32X_EVENT_PWM,
   P32X_EVENT_FILLEND,
   P32X_EVENT_HINT,
-  P32X_EVENT_VINT,
   P32X_EVENT_MTIMER,
   P32X_EVENT_STIMER,
   P32X_EVENT_COUNT,
@@ -1083,7 +1088,6 @@ void p32x_reset_sh2s(void);
 void p32x_event_schedule(unsigned int now, enum p32x_event event, int after);
 void p32x_event_schedule_sh2(SH2 *sh2, enum p32x_event event, int after);
 void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles);
-void p32x_schedule_vint(SH2 *sh2, unsigned int m68k_cycles);
 
 #define p32x_sh2_ready(sh2, cycles) \
   (CYCLES_GT(cycles,sh2->m68krcycles_done) && \
@@ -1204,6 +1208,7 @@ static __inline int isspace_(int c)
 #define EL_PWM     0x00100000 /* 32X PWM stuff (LOTS of output) */
 #define EL_32XP    0x00200000 /* 32X peripherals */
 #define EL_CD      0x00400000 /* MCD */
+#define EL_VGM     0x00800000
 
 #define EL_STATUS  0x40000000 /* status messages */
 #define EL_ANOMALY 0x80000000 /* some unexpected conditions (during emulation) */

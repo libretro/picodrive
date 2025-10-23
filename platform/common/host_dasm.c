@@ -49,7 +49,7 @@ void host_dasm(void *addr, int len)
     if (name != NULL)
       printf("%s:\n", name);
 
-    insn = *(unsigned long *)addr;
+    insn = *(unsigned *)addr;
     printf("   %08lx %08lx ", (long)addr, insn);
     if(disasm((uintptr_t)addr, insn, buf, sizeof(buf), &symaddr))
     {
@@ -63,7 +63,7 @@ void host_dasm(void *addr, int len)
         printf("%s\n", buf);
     } else
       printf("unknown (0x%08lx)\n", insn);
-    addr = (char *)addr + sizeof(long);
+    addr = (char *)addr + sizeof(unsigned);
   }
 }
 #else

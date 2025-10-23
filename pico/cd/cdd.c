@@ -472,7 +472,7 @@ int cdd_unload(void)
     int i;
 
     /* stop audio streaming */
-    if (Pico_mcd) Pico_mcd->cdda_stream = NULL;
+    if (Pico_mcd) cdda_stop_play();
 
     /* close CD tracks */
     if (cdd.toc.tracks[0].fd)
@@ -498,6 +498,8 @@ int cdd_unload(void)
       {
         /* close file */
         if (cdd.toc.tracks[i].type == CT_MP3)
+          fclose(cdd.toc.tracks[i].fd);
+        else if (cdd.toc.tracks[i].type == CT_OGG)
           fclose(cdd.toc.tracks[i].fd);
         else
           pm_close(cdd.toc.tracks[i].fd);

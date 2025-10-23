@@ -324,7 +324,7 @@ static void p32x_start_blank(void)
     Pico32xSwapDRAM(Pico32x.pending_fb ^ P32XV_FS);
   }
 
-  p32x_schedule_vint(NULL, Pico.t.m68c_aim);
+  p32x_trigger_irq(NULL, Pico.t.m68c_aim, P32XI_VINT);
   p32x_sh2_poll_event(msh2.poll_addr, &msh2, SH2_STATE_VPOLL, Pico.t.m68c_aim);
   p32x_sh2_poll_event(ssh2.poll_addr, &ssh2, SH2_STATE_VPOLL, Pico.t.m68c_aim);
 }
@@ -336,7 +336,7 @@ static void p32x_end_blank(void)
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) != 0) // no forced blanking
     Pico32x.vdp_regs[0x0a/2] &= ~P32XV_PEN; // no palette access
   if (!(Pico32x.sh2_regs[0] & 0x80)) {
-    // TODO must be early by min 4 SH-2 cycles to pass Mars Check?
+    // NB must precede VInt per hw manual, min 4 SH-2 cycles to pass Mars Check
     Pico32x.hint_counter = (int)(-1.5*0x10);
     p32x_schedule_hint(NULL, Pico.t.m68c_aim);
   }
@@ -364,17 +364,6 @@ void p32x_schedule_hint(SH2 *sh2, unsigned int m68k_cycles)
     p32x_event_schedule(m68k_cycles, P32X_EVENT_HINT, after);
 }
 
-void p32x_schedule_vint(SH2 *sh2, unsigned int m68k_cycles)
-{
-  // according to 32X hw manual, HInt and VInt are tied to HBLANK and VBLANK.
-  // Moreover, VBLANK is 27 px (224 mclk, 32 68k cycles) after HBLANK.
-  // TODO check if that matches HBLANK/VBLANK on the cartridge slot?
-  if (sh2 != NULL)
-    p32x_event_schedule_sh2(sh2, P32X_EVENT_VINT, 32);
-  else
-    p32x_event_schedule(m68k_cycles, P32X_EVENT_VINT, 32);
-}
-
 /* events */
 static void fillend_event(unsigned int now)
 {
@@ -387,11 +376,6 @@ static void hint_event(unsigned int now)
 {
   p32x_trigger_irq(NULL, now, P32XI_HINT);
   p32x_schedule_hint(NULL, now);
-}
-
-static void vint_event(unsigned int now)
-{
-  p32x_trigger_irq(NULL, now, P32XI_VINT);
 }
 
 static void mtimer_event(unsigned int now)
@@ -413,7 +397,6 @@ static event_cb *p32x_event_cbs[P32X_EVENT_COUNT] = {
   p32x_pwm_irq_event, // P32X_EVENT_PWM
   fillend_event,      // P32X_EVENT_FILLEND
   hint_event,         // P32X_EVENT_HINT
-  vint_event,         // P32X_EVENT_VINT
   mtimer_event,       // P32X_EVENT_MTIMER
   stimer_event,       // P32X_EVENT_STIMER
 };

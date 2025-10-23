@@ -57,6 +57,8 @@ LCHDR = $(CORE_DIR)/pico/cd/libchdr
 LCHDR_LZMA = $(LCHDR)/deps/lzma-24.05
 LCHDR_ZSTD = $(LCHDR)/deps/zstd-1.5.6/lib
 
+TREMOR = $(COMMON_DIR)/tremor
+
 SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
              $(LIBRETRO_COMM_DIR)/formats/png/rpng.c \
              $(LIBRETRO_COMM_DIR)/streams/trans_stream.c \
@@ -73,6 +75,22 @@ SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
              $(COMMON_DIR)/mp3.c \
              $(COMMON_DIR)/mp3_sync.c \
              $(COMMON_DIR)/mp3_dummy.c \
+             $(COMMON_DIR)/ogg.c \
+             $(COMMON_DIR)/tremor/block.c \
+             $(COMMON_DIR)/tremor/codebook.c \
+             $(COMMON_DIR)/tremor/floor0.c \
+             $(COMMON_DIR)/tremor/floor1.c \
+             $(COMMON_DIR)/tremor/info.c \
+             $(COMMON_DIR)/tremor/mapping0.c \
+             $(COMMON_DIR)/tremor/mdct.c \
+             $(COMMON_DIR)/tremor/registry.c \
+             $(COMMON_DIR)/tremor/res012.c \
+             $(COMMON_DIR)/tremor/sharedbook.c \
+             $(COMMON_DIR)/tremor/synthesis.c \
+             $(COMMON_DIR)/tremor/window.c \
+             $(COMMON_DIR)/tremor/vorbisfile.c \
+             $(COMMON_DIR)/tremor/framing.c \
+             $(COMMON_DIR)/tremor/bitwise.c \
              $(UNZIP_DIR)/unzip.c \
              $(LCHDR)/src/libchdr_bitstream.c \
              $(LCHDR)/src/libchdr_cdrom.c \
@@ -97,7 +115,7 @@ SOURCES_C := $(LIBRETRO_DIR)/libretro.c \
              $(LCHDR_ZSTD)/decompress/zstd_decompress.c
 
 COREFLAGS := $(addprefix -D,$(DEFINES)) -fno-strict-aliasing -DUSE_LIBCHDR=1 -DZ7_ST -DZSTD_DISABLE_ASM
-COREFLAGS += -I$(LCHDR)/include -I$(LCHDR_LZMA)/include -I$(LCHDR_ZSTD)
+COREFLAGS += -I$(LCHDR)/include -I$(LCHDR_LZMA)/include -I$(LCHDR_ZSTD) -I$(TREMOR) -DUSE_TREMOR
 ifeq (,$(call gte,$(APP_PLATFORM_LEVEL),18))
 ifneq ($(TARGET_ARCH_ABI),arm64-v8a)
 # HACK

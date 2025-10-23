@@ -341,6 +341,8 @@ file_ok:
 						data->tracks[count].type = CT_MP3;
 					else if (strcasecmp(ext, "wav") == 0)
 						data->tracks[count].type = CT_WAV;
+					else if (strcasecmp(ext, "ogg") == 0)
+						data->tracks[count].type = CT_OGG;
 					else if (strcasecmp(ext, "bin") == 0)
 						data->tracks[count].type = CT_RAW;
 					else {

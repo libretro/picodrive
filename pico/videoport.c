@@ -902,12 +902,14 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
     if ((pvid->reg[1]&0x40) &&
         !(pvid->type == 1 && !(pvid->addr&1) && ((pvid->addr^SATaddr)&SATmask) && PicoMem.vram[pvid->addr>>1] == d) &&
         !(pvid->type == 3 && PicoMem.cram[(pvid->addr>>1) & 0x3f] == (d & 0xeee)) &&
-        !(pvid->type == 5 && PicoMem.vsram[(pvid->addr>>1) & 0x3f] == (d & 0x7ff)))
+        !(pvid->type == 5 && PicoMem.vsram[(pvid->addr>>1) & 0x3f] == (d & 0x7ff))) {
       // the vertical scroll value for this line must be read from VSRAM early,
       // since the A/B tile row to be read depends on it. E.g. Skitchin, OD2
       // in contrast, CRAM writes would have an immediate effect on the current
       // pixel, so sync can be closer to start of actual image data
-      PicoVideoSync(InHblank(pvid->type == 3 ? 103 : 30)); // cram in Toy Story
+      static int skip_offs[] = { 30, 103, 13 }; // vram, cram (toy story), vsram (chaekopan)
+      PicoVideoSync(InHblank(skip_offs[pvid->type>>1]));
+    }
 
     if (!(PicoIn.opt&POPT_DIS_VDP_FIFO))
     {
@@ -967,6 +969,8 @@ PICO_INTERNAL_ASM void PicoVideoWrite(u32 a,unsigned short d)
           lineenabled = (d&0x40) ? Pico.m.scanline + !skip: -1;
           linedisabled = (d&0x40) ? -1 : Pico.m.scanline + !skip;
           lineoffset = (skip ? SekCyclesDone() - Pico.t.m68c_line_start : 0);
+        } else if (num == 5 && pvid->reg[num] != d) {
+          PicoVideoSync(InHblank(105)); // chaekopan
         } else if (((1<<num) & 0x738ff) && pvid->reg[num] != d)
           // VDP regs 0-7,11-13,16-18 influence rendering, ignore all others
           PicoVideoSync(InHblank(93)); // Toy Story
