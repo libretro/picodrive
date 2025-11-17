@@ -57,6 +57,14 @@ void m68k_map_unmap(u32 start_addr, u32 end_addr);
 #define MAP_FLAG ((uptr)1 << (sizeof(uptr) * 8 - 1))
 #define map_flag_set(x) ((x) & MAP_FLAG)
 
+#ifdef __EMSCRIPTEN__
+#define MAP_FUNCTION_SHIFT 0
+#define map_to_function(x) ((x) & ~MAP_FLAG)
+#else
+#define MAP_FUNCTION_SHIFT 1
+#define map_to_function(x) ((x) << MAP_FUNCTION_SHIFT)
+#endif
+
 #define MAKE_68K_READ8(name, map)               \
 u32 name(u32 a)                                 \
 {                                               \
@@ -64,7 +72,7 @@ u32 name(u32 a)                                 \
   a &= 0x00ffffff;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (map_flag_set(v))                          \
-    return ((cpu68k_read_f *)(v << 1))(a);      \
+    return ((cpu68k_read_f *)(map_to_function(v)))(a); \
   else                                          \
     return *(u8 *)((v << 1) + MEM_BE2(a));      \
 }
@@ -76,7 +84,7 @@ u32 name(u32 a)                                 \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (map_flag_set(v))                          \
-    return ((cpu68k_read_f *)(v << 1))(a);      \
+    return ((cpu68k_read_f *)(map_to_function(v)))(a); \
   else                                          \
     return *(u16 *)((v << 1) + a);              \
 }
@@ -88,13 +96,13 @@ u32 name(u32 a)                                 \
   u32 d;                                        \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
-  vs = v << 1;                                  \
   if (map_flag_set(v)) {                        \
+    vs = map_to_function(v);                    \
     d  = ((cpu68k_read_f *)vs)(a) << 16;        \
     d |= ((cpu68k_read_f *)vs)(a + 2);          \
   }                                             \
   else {                                        \
-    u16 *m = (u16 *)(vs + a);                   \
+    u16 *m = (u16 *)((v << 1) + a);             \
     d = (m[0] << 16) | m[1];                    \
   }                                             \
   return d;                                     \
@@ -107,7 +115,7 @@ void name(u32 a, u8 d)                          \
   a &= 0x00ffffff;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (map_flag_set(v))                          \
-    ((cpu68k_write_f *)(v << 1))(a, d);         \
+    ((cpu68k_write_f *)(map_to_function(v)))(a, d); \
   else                                          \
     *(u8 *)((v << 1) + MEM_BE2(a)) = d;         \
 }
@@ -119,7 +127,7 @@ void name(u32 a, u16 d)                         \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
   if (map_flag_set(v))                          \
-    ((cpu68k_write_f *)(v << 1))(a, d);         \
+    ((cpu68k_write_f *)(map_to_function(v)))(a, d); \
   else                                          \
     *(u16 *)((v << 1) + a) = d;                 \
 }
@@ -130,13 +138,13 @@ void name(u32 a, u32 d)                         \
   uptr v, vs;                                   \
   a &= 0x00fffffe;                              \
   v = map[a >> M68K_MEM_SHIFT];                 \
-  vs = v << 1;                                  \
   if (map_flag_set(v)) {                        \
+    vs = map_to_function(v);                    \
     ((cpu68k_write_f *)vs)(a, d >> 16);         \
     ((cpu68k_write_f *)vs)(a + 2, d);           \
   }                                             \
   else {                                        \
-    u16 *m = (u16 *)(vs + a);                   \
+    u16 *m = (u16 *)((v << 1) + a);             \
     m[0] = d >> 16;                             \
     m[1] = d;                                   \
   }                                             \

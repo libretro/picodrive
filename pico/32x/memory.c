@@ -1928,7 +1928,7 @@ u32 REGPARM(2) p32x_sh2_read8(u32 a, SH2 *sh2)
   if (!map_flag_set(p))
     return *(s8 *)((p << 1) + MEM_BE2(a & sh2_map->mask));
   else
-    return ((sh2_read_handler *)(p << 1))(a, sh2);
+    return ((sh2_read_handler *)(map_to_function(p)))(a, sh2);
 }
 
 u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
@@ -1941,7 +1941,7 @@ u32 REGPARM(2) p32x_sh2_read16(u32 a, SH2 *sh2)
   if (!map_flag_set(p))
     return *(s16 *)((p << 1) + (a & sh2_map->mask));
   else
-    return ((sh2_read_handler *)(p << 1))(a, sh2);
+    return ((sh2_read_handler *)(map_to_function(p)))(a, sh2);
 }
 
 u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
@@ -1955,7 +1955,7 @@ u32 REGPARM(2) p32x_sh2_read32(u32 a, SH2 *sh2)
     u32 *pd = (u32 *)((p << 1) + (a & sh2_map->mask));
     return CPU_BE2(*pd);
   } else
-    return ((sh2_read_handler *)(p << 1))(a, sh2);
+    return ((sh2_read_handler *)(map_to_function(p)))(a, sh2);
 }
 
 void REGPARM(3) p32x_sh2_write8(u32 a, u32 d, SH2 *sh2)
@@ -2299,7 +2299,7 @@ static void get_bios(void)
 }
 
 #define MAP_MEMORY(m) ((uptr)(m) >> 1)
-#define MAP_HANDLER(h) ( ((uptr)(h) >> 1) | ((uptr)1 << (sizeof(uptr) * 8 - 1)) )
+#define MAP_HANDLER(h) ( ((uptr)(h) >> MAP_FUNCTION_SHIFT) | ((uptr)1 << (sizeof(uptr) * 8 - 1)) )
 
 static sh2_memmap msh2_read8_map[0x80], msh2_read16_map[0x80],  msh2_read32_map[0x80];
 static sh2_memmap ssh2_read8_map[0x80], ssh2_read16_map[0x80],  ssh2_read32_map[0x80];

@@ -19,7 +19,7 @@ u32 z80_read(u32 a)
   a &= 0x00ffff;
   v = z80_read_map[a >> Z80_MEM_SHIFT];
   if (map_flag_set(v))
-    return ((z80_read_f *)(v << 1))(a);
+    return ((z80_read_f *)(map_to_function(v)))(a);
   else
     return *(u8 *)((v << 1) + a);
 }
