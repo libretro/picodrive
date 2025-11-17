@@ -443,6 +443,7 @@ else ifneq (,$(findstring armv,$(platform)))
 else ifeq ($(platform), emscripten) 
 	TARGET := $(TARGET_NAME)_libretro_$(platform).bc
 	ARCH = unknown
+	NO_ALIGN_FUNCTIONS = 1
 	STATIC_LINKING_LINK = 1
 	STATIC_LINKING = 1
 

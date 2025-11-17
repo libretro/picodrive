@@ -41,18 +41,26 @@ static void xmap_set(uptr *map, int shift, u32 start_addr, u32 end_addr,
     return;
   }
 
-  if (addr & 1) {
-    elprintf(EL_STATUS|EL_ANOMALY, "xmap_set: ptr is not aligned: %08lx", addr);
-    return;
+  if (is_func) {
+    if (addr & ((1 << MAP_FUNCTION_SHIFT) - 1)) {
+      elprintf(EL_STATUS|EL_ANOMALY, "xmap_set: function ptr is not aligned: %08lx", addr);
+      return;
+    }
+  } else {
+    if (addr & 1) {
+      elprintf(EL_STATUS|EL_ANOMALY, "xmap_set: data ptr is not aligned: %08lx", addr);
+      return;
+    }
   }
 
   if (!is_func)
     addr -= start_addr;
 
   for (i = start_addr >> shift; i <= end_addr >> shift; i++) {
-    map[i] = addr >> 1;
     if (is_func)
-      map[i] |= MAP_FLAG;
+      map[i] = (addr >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
+    else
+      map[i] = addr >> 1;
   }
 }
 
@@ -168,8 +176,8 @@ void cpu68k_map_read_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r
     r16map = s68k_read16_map;
   }
 
-  ar8 = (ar8 >> 1 ) | MAP_FLAG;
-  ar16 = (ar16 >> 1 ) | MAP_FLAG;
+  ar8 = (ar8 >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
+  ar16 = (ar16 >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
     r8map[i] = ar8, r16map[i] = ar16;
 }
@@ -194,10 +202,10 @@ void cpu68k_map_all_funcs(u32 start_addr, u32 end_addr, u32 (*r8)(u32), u32 (*r1
     w16map = s68k_write16_map;
   }
 
-  ar8 = (ar8 >> 1 ) | MAP_FLAG;
-  ar16 = (ar16 >> 1 ) | MAP_FLAG;
-  aw8 = (aw8 >> 1 ) | MAP_FLAG;
-  aw16 = (aw16 >> 1 ) | MAP_FLAG;
+  ar8 = (ar8 >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
+  ar16 = (ar16 >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
+  aw8 = (aw8 >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
+  aw16 = (aw16 >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
     r8map[i] = ar8, r16map[i] = ar16, w8map[i] = aw8, w16map[i] = aw16;
 }
@@ -246,19 +254,19 @@ void m68k_map_unmap(u32 start_addr, u32 end_addr)
 
   addr = (uptr)m68k_unmapped_read8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_read8_map[i] = (addr >> 1) | MAP_FLAG;
+    m68k_read8_map[i] = (addr >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_read16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_read16_map[i] = (addr >> 1) | MAP_FLAG;
+    m68k_read16_map[i] = (addr >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_write8;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_write8_map[i] = (addr >> 1) | MAP_FLAG;
+    m68k_write8_map[i] = (addr >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
 
   addr = (uptr)m68k_unmapped_write16;
   for (i = start_addr >> shift; i <= end_addr >> shift; i++)
-    m68k_write16_map[i] = (addr >> 1) | MAP_FLAG;
+    m68k_write16_map[i] = (addr >> MAP_FUNCTION_SHIFT) | MAP_FLAG;
 }
 
 #ifndef _ASM_MEMORY_C
