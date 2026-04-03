@@ -617,8 +617,6 @@ endif
 
 ifneq (,$(findstring webos,$(CROSS_COMPILE)$(findstring starfish,$(CROSS_COMPILE))))
   CFLAGS += -DWEBOS
-  CYCLONE_CC ?= $(CC_FOR_BUILD)
-  CYCLONE_CXX ?= $(CXX_FOR_BUILD)
 endif
 
 CFLAGS += -D__LIBRETRO__
