@@ -1180,8 +1180,28 @@ PICO_INTERNAL void PicoMemSetup(void)
   rs = (Pico.romsize + mask) & ~mask;
   if (rs > 0xa00000) rs = 0xa00000; // max cartridge area
   if (rs) {
-    cpu68k_map_set(m68k_read8_map,  0x000000, rs - 1, Pico.rom, 0);
-    cpu68k_map_set(m68k_read16_map, 0x000000, rs - 1, Pico.rom, 0);
+    if (rs <= 0x400000) {
+      // For ROMs smaller than 4 MB, mirror them across the entire 4 MB
+      // cartridge space.  This is required so that FAME's Fetch table has
+      // valid entries for every page the 68K might execute from; without
+      // mirroring, pages beyond the physical ROM end have Fetch[n] = 0,
+      // which causes BasePC = 0 and PC = raw-virtual-address -> SIGSEGV.
+      // Round up to the next power-of-two to match real hardware mirroring.
+      u32 mirror = 1;
+      while (mirror < rs) mirror <<= 1;
+      u32 off;
+      for (off = 0; off < 0x400000; off += mirror) {
+        u32 end = off + mirror - 1;
+        if (end >= 0x400000) end = 0x3fffff;
+        // Passing Pico.rom (not Pico.rom+off) lets xmap_set/cpu68k_map_set
+        // subtract start_addr internally, producing the correct mirrored base.
+        cpu68k_map_set(m68k_read8_map,  off, end, Pico.rom, 0);
+        cpu68k_map_set(m68k_read16_map, off, end, Pico.rom, 0);
+      }
+    } else {
+      cpu68k_map_set(m68k_read8_map,  0x000000, rs - 1, Pico.rom, 0);
+      cpu68k_map_set(m68k_read16_map, 0x000000, rs - 1, Pico.rom, 0);
+    }
   }
 
   // Common case of on-cart (save) RAM, usually at 0x200000-...
