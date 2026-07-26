@@ -797,13 +797,19 @@ size_t retro_serialize_size(void)
 {
    struct savestate_state state = { 0, };
    unsigned AHW = PicoIn.AHW;
+   unsigned hardware = Pico.m.hardware;
    int ret;
 
-   /* we need the max possible size here, so include 32X for MD and MCD */
+   /* we need the max possible size here, so include 32X for MD and MCD,
+    * and the SMS FM unit state, which is only stored once a game has
+    * accessed the FM port (frontends may cache this size at load time) */
    if (!(AHW & (PAHW_SMS|PAHW_PICO|PAHW_SVP)))
       PicoIn.AHW |= PAHW_32X;
+   else if (AHW & PAHW_SMS)
+      Pico.m.hardware |= PMS_HW_FMUSED;
    ret = PicoStateFP(&state, 1, NULL, state_skip, NULL, state_fseek);
    PicoIn.AHW = AHW;
+   Pico.m.hardware = hardware;
    if (ret != 0)
       return 0;
 
