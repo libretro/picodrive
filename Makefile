@@ -258,6 +258,7 @@ USE_FRONTEND = 1
 endif
 ifeq "$(PLATFORM)" "libretro"
 OBJS += platform/libretro/libretro.o
+OBJS += platform/libretro/libretro-common/compat/compat_strcasestr.o
 ifneq ($(STATIC_LINKING), 1)
 CFLAGS += -DHAVE_ZLIB
 OBJS += platform/libretro/libretro-common/formats/png/rpng.o
@@ -269,7 +270,6 @@ OBJS += platform/libretro/libretro-common/file/file_path.o
 OBJS += platform/libretro/libretro-common/vfs/vfs_implementation.o
 OBJS += platform/libretro/libretro-common/time/rtime.o
 OBJS += platform/libretro/libretro-common/string/stdstring.o
-OBJS += platform/libretro/libretro-common/compat/compat_strcasestr.o
 OBJS += platform/libretro/libretro-common/encodings/encoding_utf.o
 OBJS += platform/libretro/libretro-common/compat/compat_strl.o
 ifeq "$(USE_LIBRETRO_VFS)" "1"
@@ -374,9 +374,7 @@ ZSTD_OBJS += $(ZSTD)/decompress/zstd_decompress.o
 $(ZSTD_OBJS) $(CHDR_OBJS): CFLAGS += -I$(ZSTD) -Wno-unused
 
 OBJS += $(CHDR_OBJS) $(ZSTD_OBJS)
-ifneq ($(STATIC_LINKING), 1)
 OBJS += $(LZMA_OBJS)
-endif
 # ouf... prepend includes to overload headers available in the toolchain
 CFLAGS := -I$(LZMA)/include -I$(CHDR)/include $(CFLAGS)
 endif
