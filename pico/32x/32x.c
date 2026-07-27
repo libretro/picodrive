@@ -505,7 +505,7 @@ void p32x_sync_other_sh2(SH2 *sh2, unsigned int m68k_target)
   }
 
   m68k_cycles = m68k_target - osh2->m68krcycles_done;
-  if (m68k_cycles < 200)
+  if (m68k_cycles < 46) // Brutal
     return;
 
   if (osh2->state & SH2_IDLE_STATES) {
