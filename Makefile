@@ -280,7 +280,9 @@ OBJS += platform/libretro/libretro-common/streams/file_stream_transforms.o
 endif
 endif
 ifeq "$(USE_LIBRETRO_VFS)" "1"
+ifneq ($(STATIC_LINKING), 1)
 OBJS += platform/libretro/libretro-common/memmap/memmap.o
+endif
 endif
 endif
 
