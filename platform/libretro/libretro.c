@@ -2169,7 +2169,7 @@ static int readpng(unsigned short *dest, const char *fname, int req_w, int req_h
    rpng_start(rpng);
    while (rpng_iterate_image(rpng));
    do {
-      ret = rpng_process_image(rpng, &img, len, &w, &h);
+      ret = rpng_process_image(rpng, &img, len, &w, &h, false);
    } while (ret == IMAGE_PROCESS_NEXT);
 
    // there's already a scaled pngread in libpicofe, but who cares :-/
