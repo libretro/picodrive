@@ -105,7 +105,7 @@ void p32x_m68k_poll_event(u32 a, u32 flags)
   int match = (a - m68k_poll.addr1 <= 3 || a - m68k_poll.addr2 <= 3);
 
   if ((Pico32x.emu_flags & flags) && match) {
-    elprintf(EL_32X, "m68k poll %02x -> %02x", Pico32x.emu_flags,
+    elprintf(EL_32X, "m68k poll event a=%08x %02x -> %02x", a, Pico32x.emu_flags,
       Pico32x.emu_flags & ~flags);
     Pico32x.emu_flags &= ~flags;
     SekSetStop(0);
@@ -250,6 +250,8 @@ static NOINLINE void sh2_poll_write(u32 a, u32 d, unsigned int cycles, SH2 *sh2)
   q = &fifo[(sh2_poll_wr[hix]-1) % PFIFO_SZ];
   if (rd != wr && q->a == a && !CYCLES_GT(cycles,q->cycles + (!sh2 ? 30:4))) {
     q->d = d;
+    // the value now comes from this cpu (Doom Fusion)
+    q->cpu = ~cpu & 7;
   } else {
     // store write to poll address in fifo
     fifo[wr] = (struct sh2_poll_fifo)
@@ -688,7 +690,7 @@ static void p32x_vdp_write8(u32 a, u32 d, SH2 *sh2)
   switch (a) {
     case 0x01:
       // priority inversion is handled in palette
-      if ((r[0] ^ d) & P32XV_PRI) {
+      if ((r[0] ^ d) & (P32XV_PRI|P32XV_Mx)) {
         Pico32xDrawSync(sh2);
         Pico32x.dirty_pal = 1;
       }

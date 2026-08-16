@@ -916,6 +916,7 @@ static const char h_dynarec[] = "Disabling dynarecs massively slows down 32X";
 static const char h_sh2cycles[]  = "Cycles/millisecond (similar to DOSBox)\n"
 				   "lower values speed up emulation but break games\n"
 				   "at least 11000 recommended for compatibility";
+static const char h_h32layer[]   = "In 32X H32 mode, ON centers on 32X instead of MD";
 
 static menu_entry e_menu_adv_options[] =
 {
@@ -923,6 +924,7 @@ static menu_entry e_menu_adv_options[] =
 	mee_onoff     ("Disable sprite limit",     MA_OPT2_NO_SPRITE_LIM, PicoIn.opt, POPT_DIS_SPRITE_LIM),
 	mee_onoff     ("Disable idle loop patching",MA_OPT2_NO_IDLE_LOOPS,PicoIn.opt, POPT_DIS_IDLE_DET),
 	mee_onoff_h   ("Emulate Game Gear LCD",    MA_OPT2_ENABLE_GGLCD  ,PicoIn.opt, POPT_EN_GG_LCD, h_gglcd),
+	mee_onoff_h   ("32X H32 centering",        MA_32XOPT_H32_LAYER, PicoIn.opt, POPT_H32_LAYER_32X, h_h32layer),
 	mee_range_h   ("Overclock M68k (%)",       MA_OPT2_OVERCLOCK_M68K,currentConfig.overclock_68k, 0, 1000, h_ovrclk),
 	mee_onoff_h   ("Enable dynarecs",          MA_OPT2_DYNARECS,      PicoIn.opt, POPT_EN_DRC, h_dynarec),
 	mee_cust_h    ("Master SH2 cycles",        MA_32XOPT_MSH2_CYCLES, mh_opt_sh2cycles, mgn_opt_sh2cycles, h_sh2cycles),

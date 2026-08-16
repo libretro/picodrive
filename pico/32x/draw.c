@@ -15,8 +15,9 @@
 // slot (signalling the display of background color) is processed in this case
 // is however unclear and might lead to glitches due to race conditions by the
 // different video clocks for H32 and H40.
-// NB: there is an offset of 4 pixels between MD and 32X layers in H32 mode.
-#define H32_OFFSET	4
+
+// NB: there is an offset of 3.25 pixels between MD and 32X layers in H32 mode.
+#define H32_OFFSET	(int)(3.25)
 
 // BGR555 to native conversion
 #if defined(USE_BGR555)
@@ -123,7 +124,7 @@ static void convert_pal555(int invert_prio)
 #define MD_LAYER_CODE_H32 \
   *dst = dst[H32_OFFSET]
 
-// this is almost never used (Wiz and menu bg gen only)
+// this is almost never used (Wiz, vert sw scaling and menu bg gen only)
 void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
 {
   unsigned short *dst = est->DrawLineDest;
@@ -131,7 +132,7 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
   unsigned char  *pmd = est->HighCol + 8;
   unsigned short *dram, *p32x;
   unsigned char   mdbg;
-  int h32 = !(Pico.video.reg[12] & 0x1);
+  int lines_sft_offs = 0;
 
   FinalizeLine555(sh, line, est);
 
@@ -144,12 +145,24 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
   dram = (void *)Pico32xMem->dram[Pico32x.vdp_regs[0x0a/2] & P32XV_FS];
   p32x = dram + dram[line];
   mdbg = Pico.video.reg[7] & 0x3f;
-  if (h32) pmd += H32_OFFSET;
+
+  if (Pico32x.vdp_regs[2 / 2] & P32XV_SFT)
+    lines_sft_offs |= 1 << 8;
+  if (!(Pico.video.reg[12] & 1)) // H32, mind layer offset bit
+    lines_sft_offs |= 2 << 8;
+  if (PicoIn.opt & POPT_H32_LAYER_32X) // H32 centering
+    lines_sft_offs |= 4 << 8;
 
   if ((Pico32x.vdp_regs[0] & P32XV_Mx) == 2) { // Direct Color Mode
     int inv_bit = (Pico32x.vdp_regs[0] & P32XV_PRI) ? 0x8000 : 0;
-    if (h32) {
-      do_line_dc(dst, p32x, pmd, inv_bit, MD_LAYER_CODE_H32);
+    if (lines_sft_offs & (2<<8)) {
+      if (lines_sft_offs & (4<<8)) {
+        pmd += H32_OFFSET;
+        do_line_dc(dst, p32x, pmd, inv_bit, MD_LAYER_CODE_H32);
+      } else {
+        p32x -= H32_OFFSET;
+        do_line_dc(dst, p32x, pmd, inv_bit,);
+      }
     } else
       do_line_dc(dst, p32x, pmd, inv_bit,);
     return;
@@ -162,14 +175,26 @@ void FinalizeLine32xRGB555(int sh, int line, struct PicoEState *est)
     unsigned char *p32xb = (void *)p32x;
     if (Pico32x.vdp_regs[2 / 2] & P32XV_SFT)
       p32xb++;
-    if (h32) {
-      do_line_pp(dst, p32xb, pmd, MD_LAYER_CODE_H32);
+    if (lines_sft_offs & (2<<8)) {
+      if (lines_sft_offs & (4<<8)) {
+        pmd += H32_OFFSET;
+        do_line_pp(dst, p32xb, pmd, MD_LAYER_CODE_H32);
+      } else {
+        p32xb -= H32_OFFSET;
+        do_line_pp(dst, p32xb, pmd,);
+      }
     } else
       do_line_pp(dst, p32xb, pmd,);
   }
   else { // Run Length Mode
-    if (h32) {
-      do_line_rl(dst, p32x, pmd, MD_LAYER_CODE_H32);
+    if (lines_sft_offs & (2<<8)) {
+      if (lines_sft_offs & (4<<8)) {
+        pmd += H32_OFFSET;
+        do_line_rl(dst, p32x, pmd, MD_LAYER_CODE_H32);
+      } else {
+        p32x -= H32_OFFSET;
+        do_line_rl(dst, p32x, pmd,);
+      }
     } else
       do_line_rl(dst, p32x, pmd,);
   }
@@ -197,12 +222,14 @@ static void do_loop_dc##name(unsigned short *dst,               \
   unsigned short *palmd = Pico.est.HighPal;                     \
   unsigned short *p32x;                                         \
   int lines = (lines_sft_offs >> 16) & 0xff;                    \
+  int h32 = (lines_sft_offs & (2<<8));                          \
   int l;                                                        \
-  if (lines_sft_offs & (2<<8)) pmd += H32_OFFSET;               \
+  if (h32 && (lines_sft_offs & (4<<8))) pmd += H32_OFFSET;      \
   (void)palmd;                                                  \
   for (l = 0; l < lines; l++, pmd += 8) {                       \
     pre_code;                                                   \
     p32x = dram + dram[l + (lines_sft_offs >> 24)];             \
+    if (h32 && !(lines_sft_offs & (4<<8))) p32x -= H32_OFFSET;  \
     do_line_dc(dst, p32x, pmd, inv_bit, md_code);               \
     post_code;                                                  \
     dst += DrawLineDestIncrement32x/2 - 320;                    \
@@ -219,13 +246,15 @@ static void do_loop_pp##name(unsigned short *dst,               \
   unsigned short *palmd = Pico.est.HighPal;                     \
   unsigned char  *p32x;                                         \
   int lines = (lines_sft_offs >> 16) & 0xff;                    \
+  int h32 = (lines_sft_offs & (2<<8));                          \
   int l;                                                        \
-  if (lines_sft_offs & (2<<8)) pmd += H32_OFFSET;               \
+  if (h32 && (lines_sft_offs & (4<<8))) pmd += H32_OFFSET;      \
   (void)palmd;                                                  \
   for (l = 0; l < lines; l++, pmd += 8) {                       \
     pre_code;                                                   \
     p32x = (void *)(dram + dram[l + (lines_sft_offs >> 24)]);   \
     p32x += (lines_sft_offs >> 8) & 1;                          \
+    if (h32 && !(lines_sft_offs & (4<<8))) p32x -= H32_OFFSET;  \
     do_line_pp(dst, p32x, pmd, md_code);                        \
     post_code;                                                  \
     dst += DrawLineDestIncrement32x/2 - 320;                    \
@@ -242,12 +271,14 @@ static void do_loop_rl##name(unsigned short *dst,               \
   unsigned short *palmd = Pico.est.HighPal;                     \
   unsigned short *p32x;                                         \
   int lines = (lines_sft_offs >> 16) & 0xff;                    \
+  int h32 = (lines_sft_offs & (2<<8));                          \
   int l;                                                        \
-  if (lines_sft_offs & (2<<8)) pmd += H32_OFFSET;               \
+  if (h32 && (lines_sft_offs & (4<<8))) pmd += H32_OFFSET;      \
   (void)palmd;                                                  \
   for (l = 0; l < lines; l++, pmd += 8) {                       \
     pre_code;                                                   \
     p32x = dram + dram[l + (lines_sft_offs >> 24)];             \
+    if (h32 && !(lines_sft_offs & (4<<8))) p32x -= H32_OFFSET;  \
     do_line_rl(dst, p32x, pmd, md_code);                        \
     post_code;                                                  \
     dst += DrawLineDestIncrement32x/2 - 320;                    \
@@ -318,20 +349,23 @@ void PicoDraw32xLayer(int offs, int lines, int md_bg)
   }
 
 do_it:
-  // In 8bit modes MD+32X layers are merged together in 32X rendering, while in
-  // 16bit mode the MD layer is directly created in the target buffer and the
-  // 32X layer is overlaid onto that.
-  if (Pico32xDrawMode == PDM32X_BOTH)
-    which_func = have_scan ? DO_LOOP_MD_SCAN : DO_LOOP_MD;
-  else if (!(Pico.video.reg[12] & 1)) // H32, mind 4 px offset
-    which_func = have_scan ? DO_LOOP_H32_SCAN : DO_LOOP_H32;
-  else
-    which_func = have_scan ? DO_LOOP_SCAN : DO_LOOP;
   lines_sft_offs = (Pico32x.sync_line << 24) | (lines << 16) | offs;
   if (Pico32x.vdp_regs[2 / 2] & P32XV_SFT)
     lines_sft_offs |= 1 << 8;
-  if (!(Pico.video.reg[12] & 1)) // offset flag for H32
+  if (!(Pico.video.reg[12] & 1)) // H32, mind layer offset bit
     lines_sft_offs |= 2 << 8;
+  if (PicoIn.opt & POPT_H32_LAYER_32X) // H32 centering
+    lines_sft_offs |= 4 << 8;
+
+  // In 8bit modes MD+32X layers are merged together in 32X rendering, while in
+  // 16bit mode the MD layer is directly created in the target buffer and the
+  // 32X layer is overlaid onto that.
+  if (Pico32xDrawMode == PDM32X_BOTH) // 8bit
+    which_func = have_scan ? DO_LOOP_MD_SCAN : DO_LOOP_MD;
+  else if ((lines_sft_offs & ((2|4)<<8)) == (2|4)<<8) // H32, 32X centered
+    which_func = have_scan ? DO_LOOP_H32_SCAN : DO_LOOP_H32; // mind H32 offset
+  else
+    which_func = have_scan ? DO_LOOP_SCAN : DO_LOOP;
 
   do_loop[which_func](Pico.est.DrawLineDest, dram, lines_sft_offs, md_bg);
 }
