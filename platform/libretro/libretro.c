@@ -74,6 +74,8 @@ int _newlib_vm_size_user = 1 << TARGET_SIZE_2;
 #include <ps3mapi_ps3_lib.h>
 
 static uint64_t page_table[2] = {0, 0};
+#elif defined(PSP)
+#include <psputils.h>
 #endif
 
 #include "libretro_core_options.h"
